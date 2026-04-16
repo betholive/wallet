@@ -19,38 +19,19 @@ export async function GET() {
     ORDER BY month DESC
     LIMIT 1
   `;
-  console.log("[Dashboard] recentMonthRes:", recentMonthRes);
-  console.log("[Dashboard] curMonth:", curMonth);
-
   // Cap at current month - don't look at future months (in case of data entry errors)
   const rawEffectiveMonth = recentMonthRes.length > 0 && recentMonthRes[0].count > 0
     ? recentMonthRes[0].month
     : curMonth;
   const effectiveMonth = rawEffectiveMonth > curMonth ? curMonth : rawEffectiveMonth;
-  console.log("[Dashboard] rawEffectiveMonth:", rawEffectiveMonth, "effectiveMonth:", effectiveMonth);
 
   const effectivePrevMonth = effectiveMonth === curMonth ? prevMonth : curMonth;
 
-  // Debug: check what expense transactions exist
-  const debugExpenses = await sql`
-    SELECT id, type, amount, date, to_char(date,'YYYY-MM') as month_fmt
-    FROM transactions
-    WHERE type='expense' AND to_char(date,'YYYY-MM')=${effectiveMonth}
-    LIMIT 5
-  `;
-  console.log("[Dashboard] debugExpenses:", debugExpenses);
-
-  // Debug: standalone SUM query
-  const debugSum = await sql`
-    SELECT COALESCE(SUM(amount),0) as total, COUNT(*) as cnt, MIN(date) as min_date, MAX(date) as max_date
-    FROM transactions
-    WHERE type='expense' AND to_char(date,'YYYY-MM')=${effectiveMonth}
-  `;
-  console.log("[Dashboard] debugSum:", debugSum);
+  // Run month-based queries sequentially to avoid Neon SQL concurrency issues
+  const incomeThisMonth = await sql`SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='income' AND to_char(date,'YYYY-MM')=${effectiveMonth}`;
+  const expensesThisMonth = await sql`SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='expense' AND to_char(date,'YYYY-MM')=${effectiveMonth}`;
 
   const [
-    incomeThisMonth,
-    expensesThisMonth,
     debtsAll,
     savingsAll,
     assetsAll,
@@ -63,8 +44,6 @@ export async function GET() {
     debtPaymentsThisMonth,
     prevMonthDebtBal,
   ] = await Promise.all([
-    sql`SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='income' AND to_char(date,'YYYY-MM')=${effectiveMonth}`,
-    sql`SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='expense' AND to_char(date,'YYYY-MM')=${effectiveMonth}`,
     sql`SELECT * FROM debts ORDER BY status, current_balance DESC`,
     sql`SELECT * FROM savings_accounts ORDER BY type, name`,
     sql`SELECT * FROM assets ORDER BY estimated_value DESC`,
@@ -93,9 +72,6 @@ export async function GET() {
 
   const monthlyIncome = Number(incomeThisMonth[0].total);
   const monthlyExpenses = Number(expensesThisMonth[0].total);
-  console.log("[Dashboard] incomeThisMonth:", incomeThisMonth);
-  console.log("[Dashboard] expensesThisMonth:", expensesThisMonth);
-  console.log("[Dashboard] monthlyExpenses:", monthlyExpenses);
   const totalDebtBalance = debtsAll.reduce((s: number, d: Record<string, unknown>) => s + Number(d.current_balance), 0);
   const totalDebtPayments = debtsAll.reduce((s: number, d: Record<string, unknown>) => s + Number(d.minimum_payment), 0);
   const totalSavings = savingsAll.reduce((s: number, a: Record<string, unknown>) => s + Number(a.current_balance), 0);
