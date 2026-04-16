@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="24" fill="#0f766e"/>
+  <rect x="4" y="4" width="112" height="112" rx="20" fill="#14b8a6"/>
+  <path d="M30 82V38h6l22 30 22-30h6v44h-7V51L59 76h-2L37 51v31h-7z" fill="#fff"/>
+  <path d="M30 82V38h6l22 30 22-30h6v44h-7V51L59 76h-2L37 51v31h-7z" fill="#fff" opacity="0.15" transform="translate(1,1)"/>
+  <text x="60" y="108" text-anchor="middle" font-family="system-ui" font-size="11" font-weight="700" fill="#ccfbf1" letter-spacing="3">WALLET</text>
+</svg>
