@@ -4,8 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Plus, ArrowUpRight, ArrowDownRight, Wallet, PiggyBank, 
-  Landmark, CreditCard, UserCheck, TrendingUp, RefreshCw,
-  ArrowRight
+  Landmark, CreditCard, UserCheck, TrendingUp, RefreshCw
 } from "lucide-react";
 import { formatUGX, fmtPercent, formatMonth } from "@/lib/format";
 

@@ -79,7 +79,7 @@ export interface PayoffResult {
 }
 
 // Stubbed - no more complex simulation
-export function snowball(debts: Debt[], _extraMonthly: number = 0): PayoffResult {
+export function snowball(debts: Debt[]): PayoffResult {
   const stats = getDebtStats(debts);
   return {
     order: debts.map(d => d.name),
@@ -94,11 +94,11 @@ export function snowball(debts: Debt[], _extraMonthly: number = 0): PayoffResult
   };
 }
 
-export function avalanche(debts: Debt[], _extraMonthly: number = 0): PayoffResult {
-  return snowball(debts, _extraMonthly);
+export function avalanche(debts: Debt[]): PayoffResult {
+  return snowball(debts);
 }
 
-export function getPayoffRecommendation(debts: Debt[], _extraMonthly: number = 0): string {
+export function getPayoffRecommendation(debts: Debt[]): string {
   const active = debts.filter(d => d.current_balance > 0).length;
   if (active === 0) return "✅ No active debts — you're debt free!";
   return `💡 ${active} active debt(s). Record payments to track payoff progress.`;

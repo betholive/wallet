@@ -102,27 +102,6 @@ export async function GET() {
     budget_categories_on_track: budgetOnTrack,
   });
 
-  // 50/30/20 breakdown
-  const needsSpent = budgetData.filter((b: Record<string, unknown>) => b.budget_bucket === "needs").reduce((s: number, b: Record<string, unknown>) => s + Number(b.spent), 0);
-  const wantsSpent = budgetData.filter((b: Record<string, unknown>) => b.budget_bucket === "wants").reduce((s: number, b: Record<string, unknown>) => s + Number(b.spent), 0);
-  const savingsDebt = Number(savingsDepositsThisMonth[0].total) + Number(debtPaymentsThisMonth[0].total);
-
-  const needsPct = monthlyIncome > 0 ? (needsSpent / monthlyIncome) * 100 : 0;
-  const wantsPct = monthlyIncome > 0 ? (wantsSpent / monthlyIncome) * 100 : 0;
-  const savingsDebtPct = monthlyIncome > 0 ? (savingsDebt / monthlyIncome) * 100 : 0;
-
-  // Top savings goals
-  const savingsGoals = savingsAll
-    .filter((a: Record<string, unknown>) => a.target_amount && Number(a.target_amount) > 0)
-    .slice(0, 3)
-    .map((a: Record<string, unknown>) => ({
-      name: a.name,
-      goal_label: a.goal_label,
-      current: Number(a.current_balance),
-      target: Number(a.target_amount),
-      progress: Math.min((Number(a.current_balance) / Number(a.target_amount)) * 100, 100),
-    }));
-
   // Build consolidated accounts array
   const accounts = [
     // Savings accounts
