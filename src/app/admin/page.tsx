@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { TrendingUp, TrendingDown, PiggyBank, CreditCard, Wallet, Target } from "lucide-react";
+import { TrendingUp, TrendingDown, PiggyBank, CreditCard, Wallet, Target, RefreshCw } from "lucide-react";
 import { formatUGX, fmtPercent, fmtShort } from "@/lib/format";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 
@@ -34,14 +34,31 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/dashboard");
+    // Add cache-busting timestamp to prevent cached responses
+    const res = await fetch(`/api/dashboard?t=${Date.now()}`, { cache: "no-store" });
     setData(await res.json());
+    setLastUpdated(new Date());
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Auto-refresh when window regains focus
+  useEffect(() => {
+    const handleFocus = () => { load(); };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [load]);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => { load(); }, 30000);
+    return () => clearInterval(interval);
+  }, [load]);
 
   if (loading || !data) return (
     <div className="flex items-center justify-center h-64">
@@ -57,9 +74,17 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500">Your financial health at a glance</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-sm text-gray-500">
+            Your financial health at a glance
+            {lastUpdated && <span className="ml-2 text-xs text-gray-400">Updated {lastUpdated.toLocaleTimeString()}</span>}
+          </p>
+        </div>
+        <button onClick={load} className="p-2 hover:bg-gray-100 rounded-xl transition" title="Refresh">
+          <RefreshCw className={`w-5 h-5 text-gray-500 ${loading ? "animate-spin" : ""}`} />
+        </button>
       </div>
 
       {/* Health Score */}
