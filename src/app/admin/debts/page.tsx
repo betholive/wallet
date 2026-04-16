@@ -3,8 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Trash2, Pencil, X, Landmark, CreditCard, TrendingDown, Calculator, ArrowLeftRight, UserCheck } from "lucide-react";
 import { formatUGX, fmtPercent } from "@/lib/format";
-import { snowball, avalanche, type Debt as DebtInput } from "@/lib/debt-engine";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
+import { calculatePayoffProgress, getDebtStats, type PayoffProgress } from "@/lib/debt-engine";
 
 interface Debt {
   id: string; name: string; creditor: string; original_amount: number; current_balance: number;
@@ -28,7 +27,6 @@ export default function DebtsPage() {
   const [showPayForm, setShowPayForm] = useState<string | null>(null);
   const [showReceiveForm, setShowReceiveForm] = useState<string | null>(null);
   const [showEngine, setShowEngine] = useState(false);
-  const [extraMonthly, setExtraMonthly] = useState(0);
   const [monthlyIncome, setMonthlyIncome] = useState(0);
 
   const [form, setForm] = useState({
@@ -156,19 +154,17 @@ export default function DebtsPage() {
     load();
   };
 
-  // Payoff engine
-  const engineDebts: DebtInput[] = activeDebts.map(d => ({
+  // Payoff progress based on ACTUAL payments
+  const payoffProgress: PayoffProgress[] = calculatePayoffProgress(activeDebts.map(d => ({
     id: d.id, name: d.name, current_balance: Number(d.current_balance),
+    original_amount: Number(d.original_amount), total_paid: Number(d.total_paid || 0),
     interest_rate_monthly: Number(d.interest_rate_monthly), minimum_payment: Number(d.minimum_payment),
-  }));
-  const snowballResult = snowball(engineDebts, extraMonthly);
-  const avalancheResult = avalanche(engineDebts, extraMonthly);
-
-  const chartData = snowballResult.timeline.map((s, i) => ({
-    month: s.month,
-    snowball: s.total_balance,
-    avalanche: avalancheResult.timeline[i]?.total_balance || 0,
-  }));
+  })));
+  const debtStats = getDebtStats(activeDebts.map(d => ({
+    id: d.id, name: d.name, current_balance: Number(d.current_balance),
+    original_amount: Number(d.original_amount), total_paid: Number(d.total_paid || 0),
+    interest_rate_monthly: Number(d.interest_rate_monthly), minimum_payment: Number(d.minimum_payment),
+  })));
 
   return (
     <div className="space-y-4">
@@ -228,53 +224,46 @@ export default function DebtsPage() {
         </div>
       </div>
 
-      {/* Payoff Engine */}
+      {/* Payoff Progress */}
       {showEngine && activeDebts.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-4">
-          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Calculator className="w-4 h-4 text-wallet-600" /> Snowball vs Avalanche</h2>
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-gray-600">Extra monthly payment:</label>
-            <input type="number" value={extraMonthly} onChange={e => setExtraMonthly(Number(e.target.value))} className="w-40 px-3 py-2 rounded-xl border border-gray-200 text-sm" placeholder="0" />
+          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Calculator className="w-4 h-4 text-wallet-600" /> Payoff Progress</h2>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="text-center">
+              <p className="text-xs text-gray-500">Total Original</p>
+              <p className="text-lg font-bold text-gray-900">{formatUGX(debtStats.total_original)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-gray-500">Total Paid</p>
+              <p className="text-lg font-bold text-green-600">{formatUGX(debtStats.total_paid)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-gray-500">Progress</p>
+              <p className="text-lg font-bold text-wallet-600">{debtStats.percent_paid}%</p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {[
-              { label: "Snowball (smallest first)", data: snowballResult, color: "text-blue-600" },
-              { label: "Avalanche (highest rate first)", data: avalancheResult, color: "text-purple-600" },
-            ].map(m => (
-              <div key={m.label} className="rounded-xl border border-gray-100 p-4">
-                <p className={`text-sm font-semibold ${m.color} mb-2`}>{m.label}</p>
-                <div className="space-y-1 text-sm">
-                  <p>Debt-free: <strong>{m.data.debt_free_date}</strong> ({m.data.total_months} months)</p>
-                  <p>Total interest: <strong className="text-red-600">{formatUGX(m.data.total_interest)}</strong></p>
-                  <p>Total paid: <strong>{formatUGX(m.data.total_paid)}</strong></p>
-                  <p className="text-xs text-gray-400 mt-2">Order: {m.data.order.join(" → ")}</p>
+          <div className="space-y-3">
+            {payoffProgress.map(p => (
+              <div key={p.debt_id} className="rounded-xl border border-gray-100 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-gray-900">{p.debt_name}</p>
+                  <span className="text-xs font-medium text-wallet-600">{p.percent_paid}% paid</span>
                 </div>
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-wallet-500 rounded-full transition-all" style={{ width: `${p.percent_paid}%` }} />
+                </div>
+                <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                  <span>Paid: {formatUGX(p.total_paid)}</span>
+                  <span>Remaining: {formatUGX(p.current_balance)}</span>
+                </div>
+                {p.remaining_months !== null && p.current_balance > 0 && (
+                  <p className="text-xs text-gray-400 mt-1">~{p.remaining_months} months at minimum payment</p>
+                )}
               </div>
             ))}
           </div>
-
-          {snowballResult.total_interest !== avalancheResult.total_interest && (
-            <div className="rounded-xl bg-green-50 border border-green-100 p-3 text-sm text-green-800">
-              {avalancheResult.total_interest < snowballResult.total_interest
-                ? `Avalanche saves you ${formatUGX(snowballResult.total_interest - avalancheResult.total_interest)} in interest!`
-                : `Snowball saves you ${formatUGX(avalancheResult.total_interest - snowballResult.total_interest)} in interest!`}
-            </div>
-          )}
-
-          {chartData.length > 1 && (
-            <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000000 ? (v / 1000000).toFixed(1) + "M" : v >= 1000 ? (v / 1000).toFixed(0) + "K" : String(v)} />
-                <Tooltip formatter={(value) => formatUGX(Number(value))} contentStyle={{ fontSize: "12px", borderRadius: "12px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />
-                <Area type="monotone" dataKey="snowball" name="Snowball" stroke="#3b82f6" fill="#3b82f620" strokeWidth={2} />
-                <Area type="monotone" dataKey="avalanche" name="Avalanche" stroke="#8b5cf6" fill="#8b5cf620" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
         </div>
       )}
 
