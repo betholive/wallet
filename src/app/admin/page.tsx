@@ -15,6 +15,7 @@ interface DashboardData {
   };
   net_worth: number; prev_net_worth: number;
   monthly_income: number; monthly_expenses: number; surplus: number;
+  effective_month?: string;
   total_debt_balance: number; total_debt_payments: number;
   total_savings: number; total_assets: number;
   fifty_thirty_twenty: {
@@ -78,8 +79,8 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-sm text-gray-500">
-            Your financial health at a glance
-            {lastUpdated && <span className="ml-2 text-xs text-gray-400">Updated {lastUpdated.toLocaleTimeString()}</span>}
+            {data.effective_month ? `Showing data for ${data.effective_month}` : "Your financial health at a glance"}
+            {lastUpdated && <span className="ml-2 text-xs text-gray-400">• Updated {lastUpdated.toLocaleTimeString()}</span>}
           </p>
         </div>
         <button onClick={load} className="p-2 hover:bg-gray-100 rounded-xl transition" title="Refresh">

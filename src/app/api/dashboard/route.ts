@@ -11,10 +11,23 @@ export async function GET() {
   const prevDate = new Date(now.getFullYear(), now.getMonth() - 1);
   const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
 
+  // Find the most recent month with transactions (fallback if current month is empty)
+  const recentMonthRes = await sql`
+    SELECT to_char(date,'YYYY-MM') as month, COUNT(*) as count
+    FROM transactions
+    GROUP BY to_char(date,'YYYY-MM')
+    ORDER BY month DESC
+    LIMIT 1
+  `;
+  const effectiveMonth = recentMonthRes.length > 0 && recentMonthRes[0].count > 0
+    ? recentMonthRes[0].month
+    : curMonth;
+
+  const effectivePrevMonth = effectiveMonth === curMonth ? prevMonth : curMonth;
+
   const [
     incomeThisMonth,
     expensesThisMonth,
-    ,
     debtsAll,
     savingsAll,
     assetsAll,
@@ -27,9 +40,8 @@ export async function GET() {
     debtPaymentsThisMonth,
     prevMonthDebtBal,
   ] = await Promise.all([
-    sql`SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='income' AND to_char(date,'YYYY-MM')=${curMonth}`,
-    sql`SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='expense' AND to_char(date,'YYYY-MM')=${curMonth}`,
-    sql`SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='income' AND to_char(date,'YYYY-MM')=${prevMonth}`,
+    sql`SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='income' AND to_char(date,'YYYY-MM')=${effectiveMonth}`,
+    sql`SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='expense' AND to_char(date,'YYYY-MM')=${effectiveMonth}`,
     sql`SELECT * FROM debts ORDER BY status, current_balance DESC`,
     sql`SELECT * FROM savings_accounts ORDER BY type, name`,
     sql`SELECT * FROM assets ORDER BY estimated_value DESC`,
@@ -40,7 +52,7 @@ export async function GET() {
       SELECT b.*, c.name as category_name, c.budget_bucket,
         COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.category_id=b.category_id AND t.type='expense' AND to_char(t.date,'YYYY-MM')=b.month),0) as spent
       FROM budgets b JOIN categories c ON b.category_id=c.id
-      WHERE b.month=${curMonth}
+      WHERE b.month=${effectiveMonth}
     `,
     sql`
       SELECT to_char(date,'YYYY-MM') as month,
@@ -51,9 +63,9 @@ export async function GET() {
       GROUP BY to_char(date,'YYYY-MM')
       ORDER BY month
     `,
-    sql`SELECT COALESCE(SUM(amount),0) as total FROM savings_transactions WHERE type='deposit' AND to_char(date,'YYYY-MM')=${curMonth}`,
-    sql`SELECT COALESCE(SUM(amount),0) as total FROM debt_payments WHERE to_char(date,'YYYY-MM')=${curMonth}`,
-    sql`SELECT total_debts FROM net_worth_snapshots WHERE month=${prevMonth} LIMIT 1`,
+    sql`SELECT COALESCE(SUM(amount),0) as total FROM savings_transactions WHERE type='deposit' AND to_char(date,'YYYY-MM')=${effectiveMonth}`,
+    sql`SELECT COALESCE(SUM(amount),0) as total FROM debt_payments WHERE to_char(date,'YYYY-MM')=${effectiveMonth}`,
+    sql`SELECT total_debts FROM net_worth_snapshots WHERE month=${effectivePrevMonth} LIMIT 1`,
   ]);
 
   const monthlyIncome = Number(incomeThisMonth[0].total);
@@ -116,6 +128,7 @@ export async function GET() {
     monthly_income: monthlyIncome,
     monthly_expenses: monthlyExpenses,
     surplus: monthlyIncome - monthlyExpenses,
+    effective_month: effectiveMonth,
     total_debt_balance: totalDebtBalance,
     total_debt_payments: totalDebtPayments,
     total_savings: totalSavings,
