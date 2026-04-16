@@ -123,37 +123,78 @@ export async function GET() {
       progress: Math.min((Number(a.current_balance) / Number(a.target_amount)) * 100, 100),
     }));
 
+  // Build consolidated accounts array
+  const accounts = [
+    // Savings accounts
+    ...savingsAll.map((a: Record<string, unknown>) => ({
+      id: a.id as string,
+      name: a.name as string,
+      type: 'savings' as const,
+      balance: Number(a.current_balance),
+      original: undefined,
+      paid: undefined,
+      progress: a.target_amount ? Math.min((Number(a.current_balance) / Number(a.target_amount)) * 100, 100) : undefined,
+    })),
+    // Debts
+    ...debtsAll.filter((d: Record<string, unknown>) => d.status === 'active').map((d: Record<string, unknown>) => ({
+      id: d.id as string,
+      name: d.name as string,
+      type: 'debt' as const,
+      balance: Number(d.current_balance),
+      original: Number(d.original_amount),
+      paid: Number(d.total_paid || 0),
+      progress: d.original_amount ? Math.min((Number(d.total_paid || 0) / Number(d.original_amount)) * 100, 100) : undefined,
+    })),
+    // Assets
+    ...assetsAll.map((a: Record<string, unknown>) => ({
+      id: a.id as string,
+      name: a.name as string,
+      type: 'asset' as const,
+      balance: Number(a.estimated_value),
+      original: undefined,
+      paid: undefined,
+      progress: undefined,
+    })),
+    // Receivables
+    ...receivablesAll.filter((r: Record<string, unknown>) => r.status === 'active').map((r: Record<string, unknown>) => ({
+      id: r.id as string,
+      name: r.name as string,
+      type: 'receivable' as const,
+      balance: Number(r.current_balance),
+      original: Number(r.original_amount),
+      paid: Number(r.original_amount) - Number(r.current_balance),
+      progress: r.original_amount ? Math.min(((Number(r.original_amount) - Number(r.current_balance)) / Number(r.original_amount)) * 100, 100) : undefined,
+    })),
+  ];
+
+  // Simplified health data
+  const simpleHealth = {
+    score: health.score,
+    grade: health.grade as 'excellent' | 'strong' | 'progressing' | 'struggling' | 'critical',
+    dti_ratio: health.dti_ratio,
+    savings_rate: health.savings_rate,
+  };
+
   return NextResponse.json({
-    health,
     net_worth: netWorth,
-    prev_net_worth: prevNW,
     monthly_income: monthlyIncome,
     monthly_expenses: monthlyExpenses,
     surplus: monthlyIncome - monthlyExpenses,
     effective_month: effectiveMonth,
-    total_debt_balance: totalDebtBalance,
-    total_debt_payments: totalDebtPayments,
-    total_savings: totalSavings,
-    total_assets: totalAssets,
-    total_receivables: totalReceivables,
-    fifty_thirty_twenty: {
-      needs: { spent: needsSpent, pct: needsPct, target: 50 },
-      wants: { spent: wantsSpent, pct: wantsPct, target: 30 },
-      savings_debt: { spent: savingsDebt, pct: savingsDebtPct, target: 20 },
-    },
-    budget_pulse: { total: budgetTotal, on_track: budgetOnTrack },
-    savings_goals: savingsGoals,
-    debts: debtsAll,
-    receivables: receivablesAll,
+    accounts,
     cash_flow: cashFlow.map((r: Record<string, unknown>) => ({
       month: r.month,
       income: Number(r.income),
       expenses: Number(r.expenses),
     })),
-    net_worth_history: netWorthHistory.reverse().map((r: Record<string, unknown>) => ({
-      month: r.month,
-      net_worth: Number(r.net_worth),
+    recent_transactions: recentTx.map((t: Record<string, unknown>) => ({
+      id: t.id,
+      type: t.type,
+      amount: Number(t.amount),
+      description: t.description,
+      category_name: t.category_name,
+      date: t.date,
     })),
-    recent_transactions: recentTx,
+    health: simpleHealth,
   });
 }
