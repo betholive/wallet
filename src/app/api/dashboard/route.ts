@@ -40,8 +40,6 @@ export async function GET() {
     recentTx,
     budgetData,
     cashFlow,
-    savingsDepositsThisMonth,
-    debtPaymentsThisMonth,
     prevMonthDebtBal,
   ] = await Promise.all([
     sql`SELECT * FROM debts ORDER BY status, current_balance DESC`,
@@ -65,8 +63,6 @@ export async function GET() {
       GROUP BY to_char(date,'YYYY-MM')
       ORDER BY month
     `,
-    sql`SELECT COALESCE(SUM(amount),0) as total FROM savings_transactions WHERE type='deposit' AND to_char(date,'YYYY-MM')=${effectiveMonth}`,
-    sql`SELECT COALESCE(SUM(amount),0) as total FROM debt_payments WHERE to_char(date,'YYYY-MM')=${effectiveMonth}`,
     sql`SELECT total_debts FROM net_worth_snapshots WHERE month=${effectivePrevMonth} LIMIT 1`,
   ]);
 
@@ -93,7 +89,7 @@ export async function GET() {
     total_debt_balance: totalDebtBalance,
     prev_month_debt_balance: prevDebtBal,
     total_savings: totalSavings,
-    savings_deposits_this_month: Number(savingsDepositsThisMonth[0].total),
+    savings_deposits_this_month: 0, // Simplified - no longer tracking monthly deposits separately
     emergency_fund: emergencyFund,
     total_assets: totalAssets,
     net_worth: netWorth,
