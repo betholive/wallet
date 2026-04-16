@@ -40,6 +40,14 @@ export async function GET() {
   `;
   console.log("[Dashboard] debugExpenses:", debugExpenses);
 
+  // Debug: standalone SUM query
+  const debugSum = await sql`
+    SELECT COALESCE(SUM(amount),0) as total, COUNT(*) as cnt, MIN(date) as min_date, MAX(date) as max_date
+    FROM transactions
+    WHERE type='expense' AND to_char(date,'YYYY-MM')=${effectiveMonth}
+  `;
+  console.log("[Dashboard] debugSum:", debugSum);
+
   const [
     incomeThisMonth,
     expensesThisMonth,
