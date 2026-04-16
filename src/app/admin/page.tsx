@@ -69,8 +69,8 @@ export default function DashboardPage() {
             <p className={`text-xs font-semibold ${gradeText[data.health.grade]} uppercase tracking-wide`}>Financial Health Score</p>
             <p className={`text-3xl font-extrabold ${gradeText[data.health.grade]}`}>{data.health.score}/100</p>
           </div>
-          <div className={`w-16 h-16 rounded-full border-4 flex items-center justify-center`} style={{ borderColor: data.health.color, background: "white" }}>
-            <span className="text-xs font-bold" style={{ color: data.health.color }}>{data.health.grade.toUpperCase()}</span>
+          <div className={`w-20 h-20 rounded-full border-4 flex items-center justify-center`} style={{ borderColor: data.health.color, background: "white" }}>
+            <span className="text-[10px] font-bold text-center leading-tight px-1" style={{ color: data.health.color }}>{data.health.grade.toUpperCase()}</span>
           </div>
         </div>
         <div className="space-y-1">

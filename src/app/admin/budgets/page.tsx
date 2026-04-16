@@ -140,6 +140,24 @@ export default function BudgetsPage() {
         </div>
       </div>
 
+      {/* Budget Guidance */}
+      <div className="bg-wallet-50 rounded-2xl border border-wallet-100 p-4">
+        <h3 className="text-sm font-semibold text-wallet-800 mb-2">How to Budget Your Income</h3>
+        <div className="space-y-2 text-xs text-wallet-700">
+          <p><strong>1. Use Gross Income (before deductions):</strong> Start with your total monthly income — salary, business, side hustles, freelancing.</p>
+          <p><strong>2. 50/30/20 Framework:</strong></p>
+          <ul className="ml-4 space-y-1">
+            <li>• <strong>50% Needs:</strong> Rent, food, transport, utilities, healthcare, education</li>
+            <li>• <strong>30% Wants:</strong> Entertainment, dining out, personal spending, subscriptions</li>
+            <li>• <strong>20% Savings+Debt:</strong> Emergency fund, investments, debt payments beyond minimums</li>
+          </ul>
+          <p><strong>3. Pay Yourself First:</strong> Transfer 20% to savings immediately when income hits — automate it.</p>
+          <p><strong>4. Track Everything:</strong> Record all expenses in Transactions. Review weekly.</p>
+          <p><strong>5. Debt Strategy:</strong> Pay minimums on all debts, then put extra toward highest interest (avalanche) or smallest balance (snowball).</p>
+          <p className="text-wallet-600 font-medium mt-2">💡 Tip: If your needs exceed 50%, trim wants first. If still tight, consider increasing income or reducing fixed costs.</p>
+        </div>
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center h-32"><div className="w-8 h-8 border-4 border-wallet-200 border-t-wallet-600 rounded-full animate-spin" /></div>
       ) : (
