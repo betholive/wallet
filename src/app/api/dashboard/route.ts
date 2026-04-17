@@ -109,6 +109,9 @@ export async function GET() {
       original: undefined,
       paid: undefined,
       progress: a.target_amount ? Math.min((Number(a.current_balance) / Number(a.target_amount)) * 100, 100) : undefined,
+      goal_label: a.goal_label as string | null,
+      target_amount: a.target_amount ? Number(a.target_amount) : null,
+      savings_type: a.type as string,
     })),
     // Debts
     ...debtsAll.filter((d: Record<string, unknown>) => d.status === 'active').map((d: Record<string, unknown>) => ({
@@ -119,6 +122,8 @@ export async function GET() {
       original: Number(d.original_amount),
       paid: Number(d.total_paid || 0),
       progress: d.original_amount ? Math.min((Number(d.total_paid || 0) / Number(d.original_amount)) * 100, 100) : undefined,
+      creditor: d.creditor as string | null,
+      minimum_payment: Number(d.minimum_payment),
     })),
     // Assets
     ...assetsAll.map((a: Record<string, unknown>) => ({
@@ -129,6 +134,7 @@ export async function GET() {
       original: undefined,
       paid: undefined,
       progress: undefined,
+      category: a.category as string,
     })),
     // Receivables
     ...receivablesAll.filter((r: Record<string, unknown>) => r.status === 'active').map((r: Record<string, unknown>) => ({
@@ -139,8 +145,32 @@ export async function GET() {
       original: Number(r.original_amount),
       paid: Number(r.original_amount) - Number(r.current_balance),
       progress: r.original_amount ? Math.min(((Number(r.original_amount) - Number(r.current_balance)) / Number(r.original_amount)) * 100, 100) : undefined,
+      person: r.person as string | null,
     })),
   ];
+
+  // Savings goals breakdown
+  const savingsGoals = savingsAll
+    .filter((a: Record<string, unknown>) => {
+      const target = a.target_amount;
+      return target !== null && target !== undefined && Number(target) > 0;
+    })
+    .map((a: Record<string, unknown>) => ({
+      id: a.id as string,
+      name: a.name as string,
+      goal_label: a.goal_label as string | null,
+      current_balance: Number(a.current_balance),
+      target_amount: Number(a.target_amount),
+      progress: Math.min((Number(a.current_balance) / Number(a.target_amount)) * 100, 100),
+      remaining: Number(a.target_amount) - Number(a.current_balance),
+      type: a.type as string,
+    }));
+
+  // Payable vs Receivable breakdown
+  const payableDebts = debtsAll.filter((d: Record<string, unknown>) => d.status === 'active');
+  const totalPayable = payableDebts.reduce((s: number, d: Record<string, unknown>) => s + Number(d.current_balance), 0);
+  const totalReceivable = receivablesAll.filter((r: Record<string, unknown>) => r.status === 'active').reduce((s: number, r: Record<string, unknown>) => s + Number(r.current_balance), 0);
+  const netDebtPosition = totalPayable - totalReceivable;
 
   // Simplified health data
   const simpleHealth = {
@@ -171,6 +201,14 @@ export async function GET() {
       date: t.date,
     })),
     health: simpleHealth,
+    // Book-keeping summaries
+    savings_goals: savingsGoals,
+    total_savings: totalSavings,
+    emergency_fund: emergencyFund,
+    payable_debts: totalPayable,
+    receivable_amount: totalReceivable,
+    net_debt_position: netDebtPosition,
+    total_assets: totalAssets,
   };
 
   console.log("Dashboard API response:", JSON.stringify(response, null, 2));

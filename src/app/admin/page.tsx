@@ -16,7 +16,24 @@ interface Account {
   original?: number;
   paid?: number;
   progress?: number;
-  color: string;
+  goal_label?: string | null;
+  target_amount?: number | null;
+  savings_type?: string;
+  creditor?: string | null;
+  minimum_payment?: number;
+  category?: string;
+  person?: string | null;
+}
+
+interface SavingsGoal {
+  id: string;
+  name: string;
+  goal_label: string | null;
+  current_balance: number;
+  target_amount: number;
+  progress: number;
+  remaining: number;
+  type: string;
 }
 
 interface Transaction {
@@ -51,6 +68,15 @@ interface DashboardData {
     dti_ratio: number;
     savings_rate: number;
   };
+  
+  // Book-keeping summaries
+  savings_goals: SavingsGoal[];
+  total_savings: number;
+  emergency_fund: number;
+  payable_debts: number;
+  receivable_amount: number;
+  net_debt_position: number;
+  total_assets: number;
 }
 
 const TYPE_COLORS = {
@@ -102,6 +128,10 @@ export default function DashboardPage() {
 
   const assets = (data.accounts || []).filter(a => a.type === 'savings' || a.type === 'asset' || a.type === 'receivable');
   const liabilities = (data.accounts || []).filter(a => a.type === 'debt');
+  const savingsAccounts = (data.accounts || []).filter(a => a.type === 'savings');
+  const debtAccounts = (data.accounts || []).filter(a => a.type === 'debt');
+  const receivableAccounts = (data.accounts || []).filter(a => a.type === 'receivable');
+  const assetAccounts = (data.accounts || []).filter(a => a.type === 'asset');
   
   const totalAssets = assets.reduce((s, a) => s + a.balance, 0);
   const totalLiabilities = liabilities.reduce((s, d) => s + d.balance, 0);
@@ -120,7 +150,7 @@ export default function DashboardPage() {
       {/* Header with Month Selector */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Financial Overview</h1>
+          <h1 className="text-xl font-bold text-gray-900">Financial Dashboard</h1>
           <p className="text-sm text-gray-500">{data.effective_month ? formatMonth(data.effective_month) : 'Current Month'}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -136,157 +166,187 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* NET WORTH - Big Number */}
-      <div className={`rounded-2xl p-5 ${grade.bg} border border-transparent`}>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className={`text-xs font-semibold ${grade.text} uppercase tracking-wide`}>Net Worth</p>
-            <p className={`text-4xl font-extrabold ${grade.text} mt-1`}>{formatUGX(data.net_worth)}</p>
-          </div>
-          <div className="text-right">
-            <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${grade.text} bg-white/50`}>
-              <TrendingUp className="w-3 h-3" />
-              {data.health.score}/100
-            </div>
-            <p className={`text-xs ${grade.text} mt-1`}>{data.health.grade}</p>
-          </div>
-        </div>
-        
-        {/* Breakdown */}
-        <div className="grid grid-cols-2 gap-2 mt-4">
-          <div className="bg-white/60 rounded-xl p-3">
-            <p className="text-xs text-gray-500">What You Own</p>
-            <p className="text-lg font-bold text-emerald-600">{formatUGX(totalAssets)}</p>
-            <p className="text-xs text-gray-400">{assets.length} accounts</p>
-          </div>
-          <div className="bg-white/60 rounded-xl p-3">
-            <p className="text-xs text-gray-500">What You Owe</p>
-            <p className="text-lg font-bold text-red-600">{formatUGX(totalLiabilities)}</p>
-            <p className="text-xs text-gray-400">{liabilities.length} debts</p>
-          </div>
-        </div>
-      </div>
-
-      {/* CASH FLOW - This Month */}
+      {/* INCOME STATEMENT */}
       <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-700">Cash Flow</h2>
-          <span className={`text-xs font-medium px-2 py-1 rounded-full ${data.surplus >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-            {data.surplus >= 0 ? '+' : ''}{formatUGX(data.surplus)} net
-          </span>
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div className="text-center p-3 bg-emerald-50 rounded-xl">
-            <ArrowUpRight className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
-            <p className="text-xs text-gray-500">Income</p>
-            <p className="text-xl font-bold text-emerald-600">{formatUGX(data.monthly_income)}</p>
+        <h2 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-emerald-600" />
+          Income Statement
+        </h2>
+        <div className="space-y-3">
+          <div className="flex justify-between items-center py-2 border-b border-gray-100">
+            <span className="text-sm text-gray-600">Total Income</span>
+            <span className="text-sm font-bold text-emerald-600">{formatUGX(data.monthly_income)}</span>
           </div>
-          <div className="text-center p-3 bg-red-50 rounded-xl">
-            <ArrowDownRight className="w-5 h-5 text-red-600 mx-auto mb-1" />
-            <p className="text-xs text-gray-500">Expenses</p>
-            <p className="text-xl font-bold text-red-600">{formatUGX(data.monthly_expenses)}</p>
+          <div className="flex justify-between items-center py-2 border-b border-gray-100">
+            <span className="text-sm text-gray-600">Total Expenses</span>
+            <span className="text-sm font-bold text-red-600">{formatUGX(data.monthly_expenses)}</span>
           </div>
-        </div>
-        
-        {/* Progress bar */}
-        <div className="mt-4">
-          <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-gray-500">Expense ratio</span>
-            <span className={data.monthly_expenses > data.monthly_income * 0.8 ? 'text-red-600 font-medium' : 'text-gray-600'}>
-              {data.monthly_income > 0 ? fmtPercent((data.monthly_expenses / data.monthly_income) * 100) : '0%'}
+          <div className={`flex justify-between items-center py-2 ${data.surplus >= 0 ? 'bg-emerald-50' : 'bg-red-50'} rounded-lg px-3`}>
+            <span className="text-sm font-semibold text-gray-700">Net Income</span>
+            <span className={`text-sm font-bold ${data.surplus >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {data.surplus >= 0 ? '+' : ''}{formatUGX(data.surplus)}
             </span>
           </div>
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div 
-              className={`h-full rounded-full ${data.monthly_expenses > data.monthly_income * 0.8 ? 'bg-red-500' : 'bg-emerald-500'}`}
-              style={{ width: String(Math.min((data.monthly_expenses / Math.max(data.monthly_income, 1)) * 100, 100)) + '%' }} 
-            />
+        </div>
+      </div>
+
+      {/* BALANCE SHEET */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+        <h2 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+          <Landmark className="w-4 h-4 text-blue-600" />
+          Balance Sheet
+        </h2>
+        <div className="space-y-4">
+          {/* Assets */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Assets</p>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center py-1">
+                <span className="text-sm text-gray-600">Cash & Savings</span>
+                <span className="text-sm font-medium text-gray-800">{formatUGX(data.total_savings)}</span>
+              </div>
+              <div className="flex justify-between items-center py-1">
+                <span className="text-sm text-gray-600">Receivables (owed to you)</span>
+                <span className="text-sm font-medium text-gray-800">{formatUGX(data.receivable_amount)}</span>
+              </div>
+              <div className="flex justify-between items-center py-1">
+                <span className="text-sm text-gray-600">Other Assets</span>
+                <span className="text-sm font-medium text-gray-800">{formatUGX(data.total_assets)}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-t border-gray-200 font-semibold">
+                <span className="text-sm text-gray-700">Total Assets</span>
+                <span className="text-sm font-bold text-emerald-600">{formatUGX(totalAssets)}</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Liabilities */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Liabilities</p>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center py-1">
+                <span className="text-sm text-gray-600">Payable Debts (you owe)</span>
+                <span className="text-sm font-medium text-gray-800">{formatUGX(data.payable_debts)}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-t border-gray-200 font-semibold">
+                <span className="text-sm text-gray-700">Total Liabilities</span>
+                <span className="text-sm font-bold text-red-600">{formatUGX(totalLiabilities)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Net Worth */}
+          <div className={`flex justify-between items-center py-3 px-3 rounded-xl ${grade.bg}`}>
+            <span className="text-sm font-bold text-gray-700">Net Worth (Equity)</span>
+            <span className={`text-lg font-bold ${grade.text}`}>{formatUGX(data.net_worth)}</span>
           </div>
         </div>
       </div>
 
-      {/* ALL ACCOUNTS - Consolidated View */}
+      {/* SAVINGS GOALS */}
       <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-700">All Accounts</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+            <PiggyBank className="w-4 h-4 text-purple-600" />
+            Savings Goals
+          </h2>
           <button 
             onClick={() => router.push('/admin/savings')}
             className="text-xs text-wallet-600 hover:underline"
           >
-            View all →
+            Manage →
           </button>
         </div>
         
-        <div className="space-y-2">
-          {data.accounts.map(account => {
-            const colors = TYPE_COLORS[account.type];
-            const Icon = TYPE_ICONS[account.type];
-            
-            return (
-              <div 
-                key={account.id} 
-                className={`flex items-center justify-between p-3 rounded-xl border ${colors.border} ${colors.bg} cursor-pointer hover:opacity-80 transition`}
-                onClick={() => {
-                  if (account.type === 'savings') router.push('/admin/savings');
-                  else if (account.type === 'debt') router.push('/admin/debts');
-                  else if (account.type === 'asset') router.push('/admin/assets');
-                  else if (account.type === 'receivable') router.push('/admin/debts?tab=receivables');
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg bg-white`}>
-                    <Icon className={`w-4 h-4 ${colors.icon}`} />
-                  </div>
+        {data.savings_goals && data.savings_goals.length > 0 ? (
+          <div className="space-y-3">
+            {data.savings_goals.map(goal => (
+              <div key={goal.id} className="p-3 bg-purple-50 rounded-xl border border-purple-100">
+                <div className="flex justify-between items-center mb-2">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{account.name}</p>
-                    {account.progress !== undefined && account.progress > 0 && (
-                      <p className="text-xs text-gray-500">{account.progress}% paid off</p>
-                    )}
+                    <p className="text-sm font-semibold text-gray-800">{goal.goal_label || goal.name}</p>
+                    <p className="text-xs text-gray-500">{formatUGX(goal.current_balance)} of {formatUGX(goal.target_amount)}</p>
                   </div>
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${goal.progress >= 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-purple-100 text-purple-700'}`}>
+                    {goal.progress.toFixed(0)}%
+                  </span>
                 </div>
-                <div className="text-right">
-                  <p className={`text-sm font-bold ${colors.text}`}>
-                    {account.type === 'debt' ? '-' : '+'}{formatUGX(account.balance)}
-                  </p>
-                  {account.paid !== undefined && account.paid > 0 && (
-                    <p className="text-xs text-gray-400">Paid: {formatUGX(account.paid)}</p>
-                  )}
+                <div className="h-2 bg-purple-200 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-purple-600 rounded-full transition-all"
+                    style={{ width: String(Math.min(goal.progress, 100)) + '%' }}
+                  />
                 </div>
+                {goal.remaining > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">{formatUGX(goal.remaining)} remaining</p>
+                )}
               </div>
-            );
-          })}
-        </div>
-        
-        {data.accounts.length === 0 && (
-          <div className="text-center py-8 text-gray-400">
-            <Wallet className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No accounts yet</p>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-6 text-gray-400">
+            <PiggyBank className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">No savings goals set</p>
             <button 
               onClick={() => router.push('/admin/savings')}
               className="mt-2 text-xs text-wallet-600 hover:underline"
             >
-              Add your first account
+              Create a goal
             </button>
           </div>
         )}
       </div>
 
-      {/* HEALTH METRICS */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-2xl border border-gray-100 p-3 shadow-sm">
-          <p className="text-xs text-gray-500">Debt-to-Income</p>
-          <p className={`text-lg font-bold ${data.health && data.health.dti_ratio > 36 ? 'text-red-600' : data.health && data.health.dti_ratio > 20 ? 'text-amber-600' : 'text-emerald-600'}`}>
-            {data.health ? fmtPercent(data.health.dti_ratio) : '0%'}
-          </p>
-          <p className="text-xs text-gray-400">{data.health && data.health.dti_ratio > 36 ? 'High' : data.health && data.health.dti_ratio > 20 ? 'Moderate' : 'Good'}</p>
+      {/* DEBT POSITION */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-red-600" />
+            Debt Position
+          </h2>
+          <button 
+            onClick={() => router.push('/admin/debts')}
+            className="text-xs text-wallet-600 hover:underline"
+          >
+            Manage →
+          </button>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-3 shadow-sm">
-          <p className="text-xs text-gray-500">Savings Rate</p>
-          <p className={`text-lg font-bold ${data.health && data.health.savings_rate >= 20 ? 'text-emerald-600' : 'text-amber-600'}`}>
-            {data.health ? fmtPercent(data.health.savings_rate) : '0%'}
-          </p>
-          <p className="text-xs text-gray-400">{data.health && data.health.savings_rate >= 20 ? 'On track' : 'Low'}</p>
+        
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3 bg-red-50 rounded-xl">
+            <p className="text-xs text-gray-500">You Owe (Payable)</p>
+            <p className="text-lg font-bold text-red-600">{formatUGX(data.payable_debts)}</p>
+            <p className="text-xs text-gray-400">{debtAccounts.length} debts</p>
+          </div>
+          <div className="p-3 bg-amber-50 rounded-xl">
+            <p className="text-xs text-gray-500">Owed to You (Receivable)</p>
+            <p className="text-lg font-bold text-amber-600">{formatUGX(data.receivable_amount)}</p>
+            <p className="text-xs text-gray-400">{receivableAccounts.length} receivables</p>
+          </div>
+        </div>
+        
+        <div className={`mt-3 p-3 rounded-xl ${data.net_debt_position <= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-semibold text-gray-700">Net Debt Position</span>
+            <span className={`text-sm font-bold ${data.net_debt_position <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {data.net_debt_position <= 0 ? 'You are net positive' : 'You are net in debt'}: {formatUGX(Math.abs(data.net_debt_position))}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* EMERGENCY FUND */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+        <h2 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+          <Wallet className="w-4 h-4 text-blue-600" />
+          Emergency Fund
+        </h2>
+        <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
+          <div>
+            <p className="text-sm font-semibold text-gray-800">Available</p>
+            <p className="text-xs text-gray-500">For unexpected expenses</p>
+          </div>
+          <p className="text-2xl font-bold text-blue-600">{formatUGX(data.emergency_fund)}</p>
         </div>
       </div>
 
