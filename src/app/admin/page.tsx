@@ -78,9 +78,16 @@ export default function DashboardPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/dashboard?month=${selectedMonth}&t=${Date.now()}`, { cache: "no-store" });
-    setData(await res.json());
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/dashboard?month=${selectedMonth}&t=${Date.now()}`, { cache: "no-store" });
+      const data = await res.json();
+      console.log("Dashboard data received:", data);
+      setData(data);
+    } catch (error) {
+      console.error("Dashboard fetch error:", error);
+    } finally {
+      setLoading(false);
+    }
   }, [selectedMonth]);
 
   useEffect(() => { load(); }, [load]);
@@ -93,8 +100,8 @@ export default function DashboardPage() {
     );
   }
 
-  const assets = data.accounts.filter(a => a.type === 'savings' || a.type === 'asset' || a.type === 'receivable');
-  const liabilities = data.accounts.filter(a => a.type === 'debt');
+  const assets = (data.accounts || []).filter(a => a.type === 'savings' || a.type === 'asset' || a.type === 'receivable');
+  const liabilities = (data.accounts || []).filter(a => a.type === 'debt');
   
   const totalAssets = assets.reduce((s, a) => s + a.balance, 0);
   const totalLiabilities = liabilities.reduce((s, d) => s + d.balance, 0);
@@ -106,7 +113,7 @@ export default function DashboardPage() {
     struggling: { bg: 'bg-orange-100', text: 'text-orange-700', bar: 'bg-orange-500' },
     critical: { bg: 'bg-red-100', text: 'text-red-700', bar: 'bg-red-500' },
   };
-  const grade = gradeColors[data.health.grade];
+  const grade = data.health ? gradeColors[data.health.grade] : gradeColors.critical;
 
   return (
     <div className="space-y-4 pb-20">
@@ -114,7 +121,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Financial Overview</h1>
-          <p className="text-sm text-gray-500">{formatMonth(data.effective_month)}</p>
+          <p className="text-sm text-gray-500">{data.effective_month ? formatMonth(data.effective_month) : 'Current Month'}</p>
         </div>
         <div className="flex items-center gap-2">
           <input 
@@ -269,17 +276,17 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white rounded-2xl border border-gray-100 p-3 shadow-sm">
           <p className="text-xs text-gray-500">Debt-to-Income</p>
-          <p className={`text-lg font-bold ${data.health.dti_ratio > 36 ? 'text-red-600' : data.health.dti_ratio > 20 ? 'text-amber-600' : 'text-emerald-600'}`}>
-            {fmtPercent(data.health.dti_ratio)}
+          <p className={`text-lg font-bold ${data.health && data.health.dti_ratio > 36 ? 'text-red-600' : data.health && data.health.dti_ratio > 20 ? 'text-amber-600' : 'text-emerald-600'}`}>
+            {data.health ? fmtPercent(data.health.dti_ratio) : '0%'}
           </p>
-          <p className="text-xs text-gray-400">{data.health.dti_ratio > 36 ? 'High' : data.health.dti_ratio > 20 ? 'Moderate' : 'Good'}</p>
+          <p className="text-xs text-gray-400">{data.health && data.health.dti_ratio > 36 ? 'High' : data.health && data.health.dti_ratio > 20 ? 'Moderate' : 'Good'}</p>
         </div>
         <div className="bg-white rounded-2xl border border-gray-100 p-3 shadow-sm">
           <p className="text-xs text-gray-500">Savings Rate</p>
-          <p className={`text-lg font-bold ${data.health.savings_rate >= 20 ? 'text-emerald-600' : 'text-amber-600'}`}>
-            {fmtPercent(data.health.savings_rate)}
+          <p className={`text-lg font-bold ${data.health && data.health.savings_rate >= 20 ? 'text-emerald-600' : 'text-amber-600'}`}>
+            {data.health ? fmtPercent(data.health.savings_rate) : '0%'}
           </p>
-          <p className="text-xs text-gray-400">{data.health.savings_rate >= 20 ? 'On track' : 'Low'}</p>
+          <p className="text-xs text-gray-400">{data.health && data.health.savings_rate >= 20 ? 'On track' : 'Low'}</p>
         </div>
       </div>
 

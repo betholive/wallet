@@ -150,19 +150,19 @@ export async function GET() {
     savings_rate: health.savings_rate,
   };
 
-  return NextResponse.json({
+  const response = {
     net_worth: netWorth,
     monthly_income: monthlyIncome,
     monthly_expenses: monthlyExpenses,
     surplus: monthlyIncome - monthlyExpenses,
     effective_month: effectiveMonth,
-    accounts,
-    cash_flow: cashFlow.map((r: Record<string, unknown>) => ({
+    accounts: accounts || [],
+    cash_flow: (cashFlow || []).map((r: Record<string, unknown>) => ({
       month: r.month,
       income: Number(r.income),
       expenses: Number(r.expenses),
     })),
-    recent_transactions: recentTx.map((t: Record<string, unknown>) => ({
+    recent_transactions: (recentTx || []).map((t: Record<string, unknown>) => ({
       id: t.id,
       type: t.type,
       amount: Number(t.amount),
@@ -171,5 +171,8 @@ export async function GET() {
       date: t.date,
     })),
     health: simpleHealth,
-  });
+  };
+
+  console.log("Dashboard API response:", JSON.stringify(response, null, 2));
+  return NextResponse.json(response);
 }
