@@ -15,6 +15,7 @@ export default function BudgetsPage() {
   const [drafts, setDrafts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showBudgetGuide, setShowBudgetGuide] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -140,22 +141,58 @@ export default function BudgetsPage() {
         </div>
       </div>
 
+      {/* Budget Recommendations Based on Income */}
+      {monthlyIncome > 0 && (
+        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100 p-4">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+            <Target className="w-4 h-4 text-indigo-600" />
+            Recommended Budget Based on Income
+          </h3>
+          <p className="text-xs text-gray-600 mb-3">Based on your monthly income of {formatUGX(monthlyIncome)}</p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-white rounded-lg p-3 border border-indigo-200">
+              <p className="text-xs font-bold text-indigo-600">Needs (50%)</p>
+              <p className="text-sm font-bold text-gray-900">{formatUGX(monthlyIncome * 0.50)}</p>
+              <p className="text-xs text-gray-500">Rent, food, transport, utilities</p>
+            </div>
+            <div className="bg-white rounded-lg p-3 border border-purple-200">
+              <p className="text-xs font-bold text-purple-600">Wants (30%)</p>
+              <p className="text-sm font-bold text-gray-900">{formatUGX(monthlyIncome * 0.30)}</p>
+              <p className="text-xs text-gray-500">Entertainment, dining, personal</p>
+            </div>
+            <div className="bg-white rounded-lg p-3 border border-pink-200">
+              <p className="text-xs font-bold text-pink-600">Savings+Debt (20%)</p>
+              <p className="text-sm font-bold text-gray-900">{formatUGX(monthlyIncome * 0.20)}</p>
+              <p className="text-xs text-gray-500">Emergency fund, debt payments</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Budget Guidance */}
       <div className="bg-wallet-50 rounded-2xl border border-wallet-100 p-4">
-        <h3 className="text-sm font-semibold text-wallet-800 mb-2">How to Budget Your Income</h3>
-        <div className="space-y-2 text-xs text-wallet-700">
-          <p><strong>1. Use Gross Income (before deductions):</strong> Start with your total monthly income — salary, business, side hustles, freelancing.</p>
-          <p><strong>2. 50/30/20 Framework:</strong></p>
-          <ul className="ml-4 space-y-1">
-            <li>• <strong>50% Needs:</strong> Rent, food, transport, utilities, healthcare, education</li>
-            <li>• <strong>30% Wants:</strong> Entertainment, dining out, personal spending, subscriptions</li>
-            <li>• <strong>20% Savings+Debt:</strong> Emergency fund, investments, debt payments beyond minimums</li>
-          </ul>
-          <p><strong>3. Pay Yourself First:</strong> Transfer 20% to savings immediately when income hits — automate it.</p>
-          <p><strong>4. Track Everything:</strong> Record all expenses in Transactions. Review weekly.</p>
-          <p><strong>5. Debt Strategy:</strong> Pay minimums on all debts, then put extra toward highest interest (avalanche) or smallest balance (snowball).</p>
-          <p className="text-wallet-600 font-medium mt-2">💡 Tip: If your needs exceed 50%, trim wants first. If still tight, consider increasing income or reducing fixed costs.</p>
-        </div>
+        <button 
+          onClick={() => setShowBudgetGuide(!showBudgetGuide)}
+          className="w-full flex items-center justify-between text-left"
+        >
+          <h3 className="text-sm font-semibold text-wallet-800">How to Budget Your Income</h3>
+          <Zap className={`w-4 h-4 text-wallet-600 transition-transform ${showBudgetGuide ? 'rotate-180' : ''}`} />
+        </button>
+        {showBudgetGuide && (
+          <div className="space-y-2 text-xs text-wallet-700 mt-3">
+            <p><strong>1. Use Gross Income (before deductions):</strong> Start with your total monthly income — salary, business, side hustles, freelancing.</p>
+            <p><strong>2. 50/30/20 Framework:</strong></p>
+            <ul className="ml-4 space-y-1">
+              <li>• <strong>50% Needs:</strong> Rent, food, transport, utilities, healthcare, education</li>
+              <li>• <strong>30% Wants:</strong> Entertainment, dining out, personal spending, subscriptions</li>
+              <li>• <strong>20% Savings+Debt:</strong> Emergency fund, investments, debt payments beyond minimums</li>
+            </ul>
+            <p><strong>3. Pay Yourself First:</strong> Transfer 20% to savings immediately when income hits — automate it.</p>
+            <p><strong>4. Track Everything:</strong> Record all expenses in Transactions. Review weekly.</p>
+            <p><strong>5. Debt Strategy:</strong> Pay minimums on all debts, then put extra toward highest interest (avalanche) or smallest balance (snowball).</p>
+            <p className="text-wallet-600 font-medium mt-2">💡 Tip: If your needs exceed 50%, trim wants first. If still tight, consider increasing income or reducing fixed costs.</p>
+          </div>
+        )}
       </div>
 
       {loading ? (
