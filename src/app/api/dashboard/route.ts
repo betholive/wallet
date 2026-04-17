@@ -102,6 +102,25 @@ export async function GET(req: NextRequest) {
   const totalReceivables = receivablesAll.reduce((s: number, r: Record<string, unknown>) => s + Number(r.current_balance), 0);
   const netWorth = totalAssets + totalSavings + totalReceivables - totalDebtBalance;
 
+  // Calculate 50/30/20 budget recommendations
+  const budgetRecommendations = {
+    needs: {
+      amount: monthlyIncome * 0.50,
+      percentage: 50,
+      description: "Rent, food, transport, utilities, healthcare, education"
+    },
+    wants: {
+      amount: monthlyIncome * 0.30,
+      percentage: 30,
+      description: "Entertainment, dining out, personal spending, subscriptions"
+    },
+    savings_debt: {
+      amount: monthlyIncome * 0.20,
+      percentage: 20,
+      description: "Emergency fund, investments, debt payments beyond minimums"
+    }
+  };
+
   const prevNW = netWorthHistory.length > 0 ? Number(netWorthHistory[0].net_worth) : 0;
   const prevDebtBal = prevMonthDebtBal.length > 0 ? Number(prevMonthDebtBal[0].total_debts) : totalDebtBalance;
 
@@ -213,6 +232,7 @@ export async function GET(req: NextRequest) {
     surplus: monthlyIncome - monthlyExpenses,
     effective_month: effectiveMonth,
     period_label: periodLabel,
+    budget_recommendations: budgetRecommendations,
     accounts: accounts || [],
     cash_flow: (cashFlow || []).map((r: Record<string, unknown>) => ({
       month: r.month,

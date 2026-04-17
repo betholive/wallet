@@ -40,6 +40,11 @@ interface DashboardData {
   surplus: number;
   effective_month: string;
   period_label: string;
+  budget_recommendations: {
+    needs: { amount: number; percentage: number; description: string };
+    wants: { amount: number; percentage: number; description: string };
+    savings_debt: { amount: number; percentage: number; description: string };
+  };
   cash_flow: { month: string; income: number; expenses: number }[];
   recent_transactions: Transaction[];
   health: {
@@ -199,6 +204,46 @@ export default function DashboardPage() {
           </div>
           <p className={`text-xl font-bold ${expenseToIncomeRatio <= 70 ? 'text-emerald-600' : expenseToIncomeRatio <= 85 ? 'text-amber-600' : 'text-red-600'}`}>
             {expenseToIncomeRatio.toFixed(1)}%
+          </p>
+        </div>
+      </div>
+
+      {/* 50/30/20 BUDGET RECOMMENDATIONS */}
+      <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100 p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <Target className="w-5 h-5 text-indigo-600" />
+          <h2 className="text-sm font-bold text-gray-800">50/30/20 Budget Recommendations</h2>
+        </div>
+        <p className="text-xs text-gray-600 mb-4">Based on your monthly income of {formatUGX(data.monthly_income)}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white rounded-xl p-4 border border-indigo-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-bold text-indigo-600">Needs (50%)</span>
+              <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full font-medium">Essential</span>
+            </div>
+            <p className="text-lg font-bold text-gray-900 mb-1">{formatUGX(data.budget_recommendations.needs.amount)}</p>
+            <p className="text-xs text-gray-500">{data.budget_recommendations.needs.description}</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-purple-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-bold text-purple-600">Wants (30%)</span>
+              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">Discretionary</span>
+            </div>
+            <p className="text-lg font-bold text-gray-900 mb-1">{formatUGX(data.budget_recommendations.wants.amount)}</p>
+            <p className="text-xs text-gray-500">{data.budget_recommendations.wants.description}</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-pink-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-bold text-pink-600">Savings+Debt (20%)</span>
+              <span className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded-full font-medium">Priority</span>
+            </div>
+            <p className="text-lg font-bold text-gray-900 mb-1">{formatUGX(data.budget_recommendations.savings_debt.amount)}</p>
+            <p className="text-xs text-gray-500">{data.budget_recommendations.savings_debt.description}</p>
+          </div>
+        </div>
+        <div className="mt-4 p-3 bg-white/50 rounded-lg border border-indigo-200">
+          <p className="text-xs text-gray-600">
+            <span className="font-semibold">💡 Tip:</span> Pay yourself first - transfer 20% to savings immediately when income hits. If needs exceed 50%, trim wants first.
           </p>
         </div>
       </div>
