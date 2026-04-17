@@ -43,21 +43,26 @@ export default function DebtsPage() {
       fetch("/api/receivables"),
       fetch(`/api/transactions?type=income&month=${new Date().toISOString().slice(0, 7)}`),
     ]);
-    setDebts(await dRes.json());
-    setReceivables(await rRes.json());
+    const debts = await dRes.json();
+    const receivables = await rRes.json();
     const txs = await iRes.json();
-    setMonthlyIncome(txs.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0));
+    console.log("Debts API response:", debts);
+    console.log("Receivables API response:", receivables);
+    console.log("Transactions API response:", txs);
+    setDebts(Array.isArray(debts) ? debts : []);
+    setReceivables(Array.isArray(receivables) ? receivables : []);
+    setMonthlyIncome((Array.isArray(txs) ? txs : []).reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0));
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const activeDebts = debts.filter(d => d.status === "active");
+  const activeDebts = (Array.isArray(debts) ? debts : []).filter(d => d.status === "active");
   const totalBalance = activeDebts.reduce((s, d) => s + Number(d.current_balance), 0);
   const totalMinPayments = activeDebts.reduce((s, d) => s + Number(d.minimum_payment), 0);
   const dti = monthlyIncome > 0 ? (totalMinPayments / monthlyIncome) * 100 : 0;
 
-  const activeReceivables = receivables.filter(r => r.status === "active");
+  const activeReceivables = (Array.isArray(receivables) ? receivables : []).filter(r => r.status === "active");
   const totalReceivables = activeReceivables.reduce((s, r) => s + Number(r.current_balance), 0);
   const netDebtPosition = totalBalance - totalReceivables;
 

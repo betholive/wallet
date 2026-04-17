@@ -7,7 +7,7 @@ export async function GET() {
   const sql = getDb();
   const rows = await sql`
     SELECT d.*,
-      COALESCE((SELECT SUM(dp.amount) FROM debt_payments dp WHERE dp.debt_id = d.id), 0) as total_paid
+      COALESCE((SELECT SUM(dp.amount)::numeric FROM debt_payments dp WHERE dp.debt_id = d.id), 0) as total_paid
     FROM debts d
     ORDER BY d.status ASC, d.current_balance DESC
   `;

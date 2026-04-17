@@ -34,14 +34,18 @@ export default function TransactionsPage() {
       fetch(`/api/transactions?${params}`),
       fetch("/api/categories"),
     ]);
-    setTxs(await txRes.json());
-    setCategories(await catRes.json());
+    const txs = await txRes.json();
+    const cats = await catRes.json();
+    console.log("Transactions API response:", txs);
+    console.log("Categories API response:", cats);
+    setTxs(Array.isArray(txs) ? txs : []);
+    setCategories(Array.isArray(cats) ? cats : []);
     setLoading(false);
   }, [filterType, filterMonth]);
 
   useEffect(() => { load(); }, [load]);
 
-  const filteredCats = categories.filter(c => c.type === form.type);
+  const filteredCats = (Array.isArray(categories) ? categories : []).filter(c => c.type === form.type);
 
   const resetForm = () => {
     setForm({ type: "expense", amount: "", category_id: "", description: "", date: new Date().toISOString().split("T")[0], is_recurring: false, recurrence: "" });

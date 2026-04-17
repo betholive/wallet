@@ -7,7 +7,7 @@ export async function GET() {
   const sql = getDb();
   const rows = await sql`
     SELECT sa.*,
-      COALESCE((SELECT SUM(CASE WHEN st.type='deposit' THEN st.amount ELSE -st.amount END)
+      COALESCE((SELECT SUM(CASE WHEN st.type='deposit' THEN st.amount ELSE -st.amount END)::numeric
         FROM savings_transactions st WHERE st.savings_account_id = sa.id), 0) as tx_net
     FROM savings_accounts sa
     ORDER BY sa.type, sa.name

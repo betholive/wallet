@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const rows = await sql`
     SELECT b.*, c.name as category_name, c.color as category_color, c.budget_bucket,
       COALESCE((
-        SELECT SUM(t.amount) FROM transactions t
+        SELECT SUM(t.amount)::numeric FROM transactions t
         WHERE t.category_id = b.category_id
           AND t.type = 'expense'
           AND to_char(t.date, 'YYYY-MM') = b.month
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   `;
 
   const income = await sql`
-    SELECT COALESCE(SUM(amount), 0) as total
+    SELECT COALESCE(SUM(amount), 0)::numeric as total
     FROM transactions
     WHERE type = 'income' AND to_char(date, 'YYYY-MM') = ${month}
   `;

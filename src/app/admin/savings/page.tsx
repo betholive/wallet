@@ -26,9 +26,12 @@ export default function SavingsPage() {
       fetch("/api/savings"),
       fetch(`/api/transactions?type=income&month=${new Date().toISOString().slice(0, 7)}`),
     ]);
-    setAccounts(await sRes.json());
+    const accounts = await sRes.json();
     const txs = await iRes.json();
-    setMonthlyIncome(txs.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0));
+    console.log("Savings API response:", accounts);
+    console.log("Transactions API response:", txs);
+    setAccounts(Array.isArray(accounts) ? accounts : []);
+    setMonthlyIncome((Array.isArray(txs) ? txs : []).reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0));
     setLoading(false);
   }, []);
 

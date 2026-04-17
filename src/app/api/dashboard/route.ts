@@ -28,8 +28,8 @@ export async function GET() {
   const effectivePrevMonth = effectiveMonth === curMonth ? prevMonth : curMonth;
 
   // Run month-based queries sequentially to avoid Neon SQL concurrency issues
-  const incomeThisMonth = await sql`SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='income' AND to_char(date,'YYYY-MM')=${effectiveMonth}`;
-  const expensesThisMonth = await sql`SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='expense' AND to_char(date,'YYYY-MM')=${effectiveMonth}`;
+  const incomeThisMonth = await sql`SELECT COALESCE(SUM(amount),0)::numeric as total FROM transactions WHERE type='income' AND to_char(date,'YYYY-MM')=${effectiveMonth}`;
+  const expensesThisMonth = await sql`SELECT COALESCE(SUM(amount),0)::numeric as total FROM transactions WHERE type='expense' AND to_char(date,'YYYY-MM')=${effectiveMonth}`;
 
   const [
     debtsAll,

@@ -20,7 +20,9 @@ export default function AssetsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/assets");
-    setAssets(await res.json());
+    const assets = await res.json();
+    console.log("Assets API response:", assets);
+    setAssets(Array.isArray(assets) ? assets : []);
     setLoading(false);
   }, []);
 

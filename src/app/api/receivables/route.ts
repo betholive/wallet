@@ -7,7 +7,7 @@ export async function GET() {
   const sql = getDb();
   const rows = await sql`
     SELECT r.*,
-      COALESCE((SELECT SUM(rp.amount) FROM receivable_payments rp WHERE rp.receivable_id = r.id), 0) as total_received
+      COALESCE((SELECT SUM(rp.amount)::numeric FROM receivable_payments rp WHERE rp.receivable_id = r.id), 0) as total_received
     FROM receivables r
     ORDER BY r.status ASC, r.current_balance DESC
   `;
