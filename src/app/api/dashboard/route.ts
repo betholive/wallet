@@ -159,7 +159,7 @@ export async function GET(req: NextRequest) {
       savings_type: a.type as string,
     })),
     // Debts
-    ...debtsAll.filter((d: Record<string, unknown>) => d.status === 'active').map((d: Record<string, unknown>) => ({
+    ...debtsAll.map((d: Record<string, unknown>) => ({
       id: d.id as string,
       name: d.name as string,
       type: 'debt' as const,
@@ -182,7 +182,7 @@ export async function GET(req: NextRequest) {
       category: a.category as string,
     })),
     // Receivables
-    ...receivablesAll.filter((r: Record<string, unknown>) => r.status === 'active').map((r: Record<string, unknown>) => ({
+    ...receivablesAll.map((r: Record<string, unknown>) => ({
       id: r.id as string,
       name: r.name as string,
       type: 'receivable' as const,
