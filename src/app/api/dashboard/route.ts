@@ -40,19 +40,8 @@ export async function GET(req: NextRequest) {
       periodLabel = "Last 6 months";
   }
 
-  // Find the most recent month with transactions (fallback if current month is empty)
-  const recentMonthRes = await sql`
-    SELECT to_char(date,'YYYY-MM') as month, COUNT(*) as count
-    FROM transactions
-    GROUP BY to_char(date,'YYYY-MM')
-    ORDER BY month DESC
-    LIMIT 1
-  `;
-  // Cap at current month - don't look at future months (in case of data entry errors)
-  const rawEffectiveMonth = recentMonthRes.length > 0 && recentMonthRes[0].count > 0
-    ? recentMonthRes[0].month
-    : curMonth;
-  const effectiveMonth = month || rawEffectiveMonth > curMonth ? curMonth : rawEffectiveMonth;
+  // Use the requested month, or default to current month
+  const effectiveMonth = month || curMonth;
   const effectivePrevMonth = effectiveMonth === curMonth ? prevMonth : curMonth;
 
   // Run month-based queries sequentially to avoid Neon SQL concurrency issues
