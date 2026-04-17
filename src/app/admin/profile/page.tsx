@@ -36,7 +36,7 @@ export default function AccountPage() {
   return (
     <div className="space-y-4 max-w-md">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Account</h1>
+        <h1 className="text-xl font-bold text-gray-900">Profile</h1>
         <p className="text-sm text-gray-500">Manage your settings</p>
       </div>
 

@@ -1,15 +1,44 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { getDb } from "@/lib/db";
 import { computeHealthScore } from "@/lib/health-engine";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const sql = getDb();
+  const { searchParams } = new URL(req.url);
+  const month = searchParams.get("month");
+  const period = searchParams.get("period") || "month";
+
   const now = new Date();
   const curMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const prevDate = new Date(now.getFullYear(), now.getMonth() - 1);
   const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+
+  // Calculate date range based on period
+  let dateFilter = "";
+  let periodLabel = "";
+  switch (period) {
+    case "week":
+      dateFilter = "date >= CURRENT_DATE - INTERVAL '7 days'";
+      periodLabel = "Last 7 days";
+      break;
+    case "month":
+      dateFilter = "date >= (CURRENT_DATE - INTERVAL '1 month')";
+      periodLabel = "Last 30 days";
+      break;
+    case "quarter":
+      dateFilter = "date >= (CURRENT_DATE - INTERVAL '3 months')";
+      periodLabel = "Last 90 days";
+      break;
+    case "year":
+      dateFilter = "date >= (CURRENT_DATE - INTERVAL '12 months')";
+      periodLabel = "Last 12 months";
+      break;
+    default:
+      dateFilter = "date >= (CURRENT_DATE - INTERVAL '6 months')";
+      periodLabel = "Last 6 months";
+  }
 
   // Find the most recent month with transactions (fallback if current month is empty)
   const recentMonthRes = await sql`
@@ -23,8 +52,7 @@ export async function GET() {
   const rawEffectiveMonth = recentMonthRes.length > 0 && recentMonthRes[0].count > 0
     ? recentMonthRes[0].month
     : curMonth;
-  const effectiveMonth = rawEffectiveMonth > curMonth ? curMonth : rawEffectiveMonth;
-
+  const effectiveMonth = month || rawEffectiveMonth > curMonth ? curMonth : rawEffectiveMonth;
   const effectivePrevMonth = effectiveMonth === curMonth ? prevMonth : curMonth;
 
   // Run month-based queries sequentially to avoid Neon SQL concurrency issues
@@ -41,6 +69,7 @@ export async function GET() {
     budgetData,
     cashFlow,
     prevMonthDebtBal,
+    categoryBreakdown,
   ] = await Promise.all([
     sql`SELECT * FROM debts ORDER BY status, current_balance DESC`,
     sql`SELECT * FROM savings_accounts ORDER BY type, name`,
@@ -59,11 +88,19 @@ export async function GET() {
         SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expenses
       FROM transactions
-      WHERE date >= (CURRENT_DATE - INTERVAL '6 months')
+      WHERE ${sql.unsafe(dateFilter)}
       GROUP BY to_char(date,'YYYY-MM')
       ORDER BY month
     `,
     sql`SELECT total_debts FROM net_worth_snapshots WHERE month=${effectivePrevMonth} LIMIT 1`,
+    sql`
+      SELECT c.name as category_name, c.color as category_color, c.type,
+        COALESCE(SUM(t.amount), 0) as total
+      FROM categories c
+      LEFT JOIN transactions t ON t.category_id = c.id AND to_char(t.date,'YYYY-MM') = ${effectiveMonth}
+      GROUP BY c.id, c.name, c.color, c.type
+      ORDER BY c.type, total DESC NULLS LAST
+    `,
   ]);
 
   const monthlyIncome = Number(incomeThisMonth[0].total);
@@ -186,6 +223,7 @@ export async function GET() {
     monthly_expenses: monthlyExpenses,
     surplus: monthlyIncome - monthlyExpenses,
     effective_month: effectiveMonth,
+    period_label: periodLabel,
     accounts: accounts || [],
     cash_flow: (cashFlow || []).map((r: Record<string, unknown>) => ({
       month: r.month,
@@ -209,6 +247,20 @@ export async function GET() {
     receivable_amount: totalReceivable,
     net_debt_position: netDebtPosition,
     total_assets: totalAssets,
+    // Dashboard analytics
+    category_breakdown: (categoryBreakdown || []).map((c: Record<string, unknown>) => ({
+      category_name: c.category_name as string,
+      color: c.color as string,
+      type: c.type as string,
+      total: Number(c.total),
+    })),
+    budget_compliance: (budgetData || []).map((b: Record<string, unknown>) => ({
+      category_name: b.category_name as string,
+      budgeted: Number(b.budgeted_amount),
+      spent: Number(b.spent),
+      remaining: Number(b.budgeted_amount) - Number(b.spent),
+      compliance: Number(b.budgeted_amount) > 0 ? ((Number(b.spent) / Number(b.budgeted_amount)) * 100) : 0,
+    })),
   };
 
   console.log("Dashboard API response:", JSON.stringify(response, null, 2));

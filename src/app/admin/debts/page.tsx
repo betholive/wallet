@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Trash2, Pencil, X, Landmark, CreditCard, TrendingDown, Calculator, ArrowLeftRight, UserCheck } from "lucide-react";
+import { Plus, Trash2, Pencil, X, Landmark, CreditCard, TrendingDown, Calculator, ArrowLeftRight, UserCheck, AlertTriangle } from "lucide-react";
 import { formatUGX, fmtPercent } from "@/lib/format";
 import { calculatePayoffProgress, getDebtStats, type PayoffProgress } from "@/lib/debt-engine";
 
@@ -38,21 +38,26 @@ export default function DebtsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [dRes, rRes, iRes] = await Promise.all([
-      fetch("/api/debts"),
-      fetch("/api/receivables"),
-      fetch(`/api/transactions?type=income&month=${new Date().toISOString().slice(0, 7)}`),
-    ]);
-    const debts = await dRes.json();
-    const receivables = await rRes.json();
-    const txs = await iRes.json();
-    console.log("Debts API response:", debts);
-    console.log("Receivables API response:", receivables);
-    console.log("Transactions API response:", txs);
-    setDebts(Array.isArray(debts) ? debts : []);
-    setReceivables(Array.isArray(receivables) ? receivables : []);
-    setMonthlyIncome((Array.isArray(txs) ? txs : []).reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0));
-    setLoading(false);
+    try {
+      const [dRes, rRes, iRes] = await Promise.all([
+        fetch("/api/debts"),
+        fetch("/api/receivables"),
+        fetch(`/api/transactions?type=income&month=${new Date().toISOString().slice(0, 7)}`),
+      ]);
+      const debts = await dRes.json();
+      const receivables = await rRes.json();
+      const txs = iRes.ok ? await iRes.json() : [];
+      console.log("Debts API response:", debts);
+      console.log("Receivables API response:", receivables);
+      console.log("Transactions API response:", txs);
+      setDebts(Array.isArray(debts) ? debts : []);
+      setReceivables(Array.isArray(receivables) ? receivables : []);
+      setMonthlyIncome((Array.isArray(txs) ? txs : []).reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0));
+    } catch (error) {
+      console.error("Error loading debts data:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -229,10 +234,15 @@ export default function DebtsPage() {
         </div>
       </div>
 
-      {/* Payoff Progress */}
-      {showEngine && activeDebts.length > 0 && (
+      {/* Payoff Progress - Always visible */}
+      {activeDebts.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-4">
-          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Calculator className="w-4 h-4 text-wallet-600" /> Payoff Progress</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Calculator className="w-4 h-4 text-wallet-600" /> Payoff Progress</h2>
+            <button onClick={() => setShowEngine(!showEngine)} className="text-xs text-wallet-600 hover:underline">
+              {showEngine ? 'Hide Details' : 'Show Details'}
+            </button>
+          </div>
 
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
@@ -249,25 +259,80 @@ export default function DebtsPage() {
             </div>
           </div>
 
-          <div className="space-y-3">
-            {payoffProgress.map(p => (
-              <div key={p.debt_id} className="rounded-xl border border-gray-100 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-medium text-gray-900">{p.debt_name}</p>
-                  <span className="text-xs font-medium text-wallet-600">{p.percent_paid}% paid</span>
+          {showEngine && (
+            <div className="space-y-3">
+              {payoffProgress.map(p => (
+                <div key={p.debt_id} className="rounded-xl border border-gray-100 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-medium text-gray-900">{p.debt_name}</p>
+                    <span className="text-xs font-medium text-wallet-600">{p.percent_paid}% paid</span>
+                  </div>
+                  <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-wallet-500 rounded-full transition-all" style={{ width: `${p.percent_paid}%` }} />
+                  </div>
+                  <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                    <span>Paid: {formatUGX(p.total_paid)}</span>
+                    <span>Remaining: {formatUGX(p.current_balance)}</span>
+                  </div>
+                  {p.remaining_months !== null && p.current_balance > 0 && (
+                    <p className="text-xs text-gray-400 mt-1">~{p.remaining_months} months at minimum payment</p>
+                  )}
                 </div>
-                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-wallet-500 rounded-full transition-all" style={{ width: `${p.percent_paid}%` }} />
-                </div>
-                <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-                  <span>Paid: {formatUGX(p.total_paid)}</span>
-                  <span>Remaining: {formatUGX(p.current_balance)}</span>
-                </div>
-                {p.remaining_months !== null && p.current_balance > 0 && (
-                  <p className="text-xs text-gray-400 mt-1">~{p.remaining_months} months at minimum payment</p>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Debt Strategy Recommendations */}
+      {activeDebts.length > 1 && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3"><TrendingDown className="w-4 h-4 text-blue-600" /> Payoff Strategy</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="p-3 bg-blue-50 rounded-xl">
+              <p className="text-sm font-bold text-gray-900 mb-1">Avalanche (Highest Interest)</p>
+              <p className="text-xs text-gray-600">Pay off highest interest rate first to minimize total interest paid</p>
+              <p className="text-xs text-wallet-600 mt-2 font-medium">
+                Recommended: {activeDebts.reduce((max, d) => Number(d.interest_rate_monthly) > Number(max.interest_rate_monthly) ? d : max).name}
+              </p>
+            </div>
+            <div className="p-3 bg-green-50 rounded-xl">
+              <p className="text-sm font-bold text-gray-900 mb-1">Snowball (Smallest Balance)</p>
+              <p className="text-xs text-gray-600">Pay off smallest balance first for psychological wins</p>
+              <p className="text-xs text-wallet-600 mt-2 font-medium">
+                Recommended: {activeDebts.reduce((min, d) => Number(d.current_balance) < Number(min.current_balance) ? d : min).name}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Due Date Alerts */}
+      {activeDebts.some(d => d.due_date && new Date(d.due_date) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3"><AlertTriangle className="w-4 h-4 text-amber-600" /> Upcoming Due Dates</h2>
+          <div className="space-y-2">
+            {activeDebts
+              .filter(d => d.due_date && new Date(d.due_date) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
+              .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+              .map(d => {
+                const daysUntilDue = Math.ceil((new Date(d.due_date).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+                const isUrgent = daysUntilDue <= 7;
+                return (
+                  <div key={d.id} className={`flex items-center justify-between p-2 rounded-lg ${isUrgent ? 'bg-red-50' : 'bg-amber-50'}`}>
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className={`w-4 h-4 ${isUrgent ? 'text-red-600' : 'text-amber-600'}`} />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{d.name}</p>
+                        <p className="text-xs text-gray-500">Due: {d.due_date?.split('T')[0]}</p>
+                      </div>
+                    </div>
+                    <span className={`text-xs font-bold ${isUrgent ? 'text-red-600' : 'text-amber-600'}`}>
+                      {daysUntilDue <= 0 ? 'Overdue' : `${daysUntilDue} days`}
+                    </span>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}

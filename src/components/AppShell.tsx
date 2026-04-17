@@ -10,6 +10,7 @@ import {
   Landmark,
   PiggyBank,
   Building2,
+  Wallet,
   Settings,
   LogOut,
   Menu,
@@ -19,12 +20,13 @@ import { useState } from "react";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/accounts", label: "Accounts", icon: Wallet },
   { href: "/admin/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/admin/budgets", label: "Budgets", icon: Target },
   { href: "/admin/debts", label: "Debts", icon: Landmark },
   { href: "/admin/savings", label: "Savings", icon: PiggyBank },
   { href: "/admin/assets", label: "Assets", icon: Building2 },
-  { href: "/admin/account", label: "Account", icon: Settings },
+  { href: "/admin/profile", label: "Profile", icon: Settings },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

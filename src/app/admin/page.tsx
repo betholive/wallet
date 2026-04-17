@@ -3,38 +3,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  Plus, ArrowUpRight, ArrowDownRight, Wallet, PiggyBank, 
-  Landmark, CreditCard, UserCheck, TrendingUp, RefreshCw
+  Plus, ArrowUpRight, ArrowDownRight, TrendingUp, TrendingDown, 
+  AlertTriangle, RefreshCw, PieChart as PieChartIcon, BarChart3, Target, Zap
 } from "lucide-react";
-import { formatUGX, fmtPercent, formatMonth } from "@/lib/format";
-
-interface Account {
-  id: string;
-  name: string;
-  type: 'savings' | 'debt' | 'asset' | 'receivable';
-  balance: number;
-  original?: number;
-  paid?: number;
-  progress?: number;
-  goal_label?: string | null;
-  target_amount?: number | null;
-  savings_type?: string;
-  creditor?: string | null;
-  minimum_payment?: number;
-  category?: string;
-  person?: string | null;
-}
-
-interface SavingsGoal {
-  id: string;
-  name: string;
-  goal_label: string | null;
-  current_balance: number;
-  target_amount: number;
-  progress: number;
-  remaining: number;
-  type: string;
-}
+import { formatUGX, formatMonth } from "@/lib/format";
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
 
 interface Transaction {
   id: string;
@@ -45,53 +18,39 @@ interface Transaction {
   date: string;
 }
 
+interface CategoryBreakdown {
+  category_name: string;
+  color: string;
+  type: string;
+  total: number;
+}
+
+interface BudgetCompliance {
+  category_name: string;
+  budgeted: number;
+  spent: number;
+  remaining: number;
+  compliance: number;
+}
+
 interface DashboardData {
   net_worth: number;
   monthly_income: number;
   monthly_expenses: number;
   surplus: number;
   effective_month: string;
-  
-  // All accounts consolidated
-  accounts: Account[];
-  
-  // Cash flow history
+  period_label: string;
   cash_flow: { month: string; income: number; expenses: number }[];
-  
-  // Recent activity
   recent_transactions: Transaction[];
-  
-  // Health metrics
   health: {
     score: number;
     grade: 'excellent' | 'strong' | 'progressing' | 'struggling' | 'critical';
     dti_ratio: number;
     savings_rate: number;
   };
-  
-  // Book-keeping summaries
-  savings_goals: SavingsGoal[];
-  total_savings: number;
-  emergency_fund: number;
-  payable_debts: number;
-  receivable_amount: number;
-  net_debt_position: number;
-  total_assets: number;
+  category_breakdown: CategoryBreakdown[];
+  budget_compliance: BudgetCompliance[];
 }
-
-const TYPE_COLORS = {
-  savings: { bg: 'bg-emerald-50', text: 'text-emerald-600', icon: 'text-emerald-600', border: 'border-emerald-100' },
-  debt: { bg: 'bg-red-50', text: 'text-red-600', icon: 'text-red-600', border: 'border-red-100' },
-  asset: { bg: 'bg-blue-50', text: 'text-blue-600', icon: 'text-blue-600', border: 'border-blue-100' },
-  receivable: { bg: 'bg-amber-50', text: 'text-amber-600', icon: 'text-amber-600', border: 'border-amber-100' },
-};
-
-const TYPE_ICONS = {
-  savings: PiggyBank,
-  debt: CreditCard,
-  asset: Landmark,
-  receivable: UserCheck,
-};
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -101,20 +60,20 @@ export default function DashboardPage() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [timePeriod, setTimePeriod] = useState<'week' | 'month' | 'quarter' | 'year'>('month');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/dashboard?month=${selectedMonth}&t=${Date.now()}`, { cache: "no-store" });
+      const res = await fetch(`/api/dashboard?month=${selectedMonth}&period=${timePeriod}&t=${Date.now()}`, { cache: "no-store" });
       const data = await res.json();
-      console.log("Dashboard data received:", data);
       setData(data);
     } catch (error) {
       console.error("Dashboard fetch error:", error);
     } finally {
       setLoading(false);
     }
-  }, [selectedMonth]);
+  }, [selectedMonth, timePeriod]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -126,287 +85,458 @@ export default function DashboardPage() {
     );
   }
 
-  const assets = (data.accounts || []).filter(a => a.type === 'savings' || a.type === 'asset' || a.type === 'receivable');
-  const liabilities = (data.accounts || []).filter(a => a.type === 'debt');
-  const savingsAccounts = (data.accounts || []).filter(a => a.type === 'savings');
-  const debtAccounts = (data.accounts || []).filter(a => a.type === 'debt');
-  const receivableAccounts = (data.accounts || []).filter(a => a.type === 'receivable');
-  const assetAccounts = (data.accounts || []).filter(a => a.type === 'asset');
-  
-  const totalAssets = assets.reduce((s, a) => s + a.balance, 0);
-  const totalLiabilities = liabilities.reduce((s, d) => s + d.balance, 0);
-  
-  const gradeColors = {
-    excellent: { bg: 'bg-emerald-100', text: 'text-emerald-700', bar: 'bg-emerald-500' },
-    strong: { bg: 'bg-teal-100', text: 'text-teal-700', bar: 'bg-teal-500' },
-    progressing: { bg: 'bg-amber-100', text: 'text-amber-700', bar: 'bg-amber-500' },
-    struggling: { bg: 'bg-orange-100', text: 'text-orange-700', bar: 'bg-orange-500' },
-    critical: { bg: 'bg-red-100', text: 'text-red-700', bar: 'bg-red-500' },
-  };
-  const grade = data.health ? gradeColors[data.health.grade] : gradeColors.critical;
+  const expenseToIncomeRatio = data.monthly_income > 0 ? (data.monthly_expenses / data.monthly_income) * 100 : 0;
+  const savingsRate = data.health.savings_rate;
+  const dtiRatio = data.health.dti_ratio;
+
+  // Calculate highs/lows/averages
+  const incomeCategories = data.category_breakdown.filter(c => c.type === 'income' && c.total > 0);
+  const expenseCategories = data.category_breakdown.filter(c => c.type === 'expense' && c.total > 0);
+  const highestExpense = expenseCategories.length > 0 ? expenseCategories[0] : null;
+  const highestIncome = incomeCategories.length > 0 ? incomeCategories[0] : null;
+  const avgTransaction = data.recent_transactions.length > 0 
+    ? data.recent_transactions.reduce((sum, t) => sum + t.amount, 0) / data.recent_transactions.length 
+    : 0;
+
+  // Warnings
+  const warnings = [];
+  if (expenseToIncomeRatio > 90) warnings.push({ type: 'critical', message: 'Spending exceeds 90% of income' });
+  if (expenseToIncomeRatio > 80) warnings.push({ type: 'warning', message: 'Spending exceeds 80% of income' });
+  if (savingsRate < 10) warnings.push({ type: 'warning', message: 'Savings rate below 10%' });
+  if (dtiRatio > 40) warnings.push({ type: 'critical', message: 'Debt-to-income ratio above 40%' });
+  if (dtiRatio > 30) warnings.push({ type: 'warning', message: 'Debt-to-income ratio above 30%' });
+
+  // Budget overspending
+  const overspentCategories = data.budget_compliance.filter(b => b.compliance > 100);
 
   return (
     <div className="space-y-4 pb-20">
       {/* Header with Month Selector */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Financial Dashboard</h1>
-          <p className="text-sm text-gray-500">{data.effective_month ? formatMonth(data.effective_month) : 'Current Month'}</p>
+          <h1 className="text-2xl font-bold text-gray-900">Financial Dashboard</h1>
+          <p className="text-sm text-gray-500">{data.effective_month ? formatMonth(data.effective_month) : 'Current Month'} • {data.period_label}</p>
         </div>
         <div className="flex items-center gap-2">
+          <select 
+            value={timePeriod}
+            onChange={(e) => setTimePeriod(e.target.value as 'week' | 'month' | 'quarter' | 'year')}
+            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-wallet-500 focus:border-transparent transition"
+          >
+            <option value="week">Week</option>
+            <option value="month">Month</option>
+            <option value="quarter">Quarter</option>
+            <option value="year">Year</option>
+          </select>
           <input 
             type="month" 
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
+            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-wallet-500 focus:border-transparent transition"
           />
-          <button onClick={load} className="p-2 hover:bg-gray-100 rounded-lg transition">
+          <button 
+            onClick={load} 
+            className="p-2 hover:bg-gray-100 rounded-lg transition"
+          >
             <RefreshCw className={`w-4 h-4 text-gray-500 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
       </div>
 
-      {/* INCOME STATEMENT */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-        <h2 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-emerald-600" />
-          Income Statement
-        </h2>
-        <div className="space-y-3">
-          <div className="flex justify-between items-center py-2 border-b border-gray-100">
-            <span className="text-sm text-gray-600">Total Income</span>
-            <span className="text-sm font-bold text-emerald-600">{formatUGX(data.monthly_income)}</span>
-          </div>
-          <div className="flex justify-between items-center py-2 border-b border-gray-100">
-            <span className="text-sm text-gray-600">Total Expenses</span>
-            <span className="text-sm font-bold text-red-600">{formatUGX(data.monthly_expenses)}</span>
-          </div>
-          <div className={`flex justify-between items-center py-2 ${data.surplus >= 0 ? 'bg-emerald-50' : 'bg-red-50'} rounded-lg px-3`}>
-            <span className="text-sm font-semibold text-gray-700">Net Income</span>
-            <span className={`text-sm font-bold ${data.surplus >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-              {data.surplus >= 0 ? '+' : ''}{formatUGX(data.surplus)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* BALANCE SHEET */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-        <h2 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-          <Landmark className="w-4 h-4 text-blue-600" />
-          Balance Sheet
-        </h2>
-        <div className="space-y-4">
-          {/* Assets */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Assets</p>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center py-1">
-                <span className="text-sm text-gray-600">Cash & Savings</span>
-                <span className="text-sm font-medium text-gray-800">{formatUGX(data.total_savings)}</span>
-              </div>
-              <div className="flex justify-between items-center py-1">
-                <span className="text-sm text-gray-600">Receivables (owed to you)</span>
-                <span className="text-sm font-medium text-gray-800">{formatUGX(data.receivable_amount)}</span>
-              </div>
-              <div className="flex justify-between items-center py-1">
-                <span className="text-sm text-gray-600">Other Assets</span>
-                <span className="text-sm font-medium text-gray-800">{formatUGX(data.total_assets)}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-t border-gray-200 font-semibold">
-                <span className="text-sm text-gray-700">Total Assets</span>
-                <span className="text-sm font-bold text-emerald-600">{formatUGX(totalAssets)}</span>
-              </div>
-            </div>
-          </div>
-          
-          {/* Liabilities */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Liabilities</p>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center py-1">
-                <span className="text-sm text-gray-600">Payable Debts (you owe)</span>
-                <span className="text-sm font-medium text-gray-800">{formatUGX(data.payable_debts)}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-t border-gray-200 font-semibold">
-                <span className="text-sm text-gray-700">Total Liabilities</span>
-                <span className="text-sm font-bold text-red-600">{formatUGX(totalLiabilities)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Net Worth */}
-          <div className={`flex justify-between items-center py-3 px-3 rounded-xl ${grade.bg}`}>
-            <span className="text-sm font-bold text-gray-700">Net Worth (Equity)</span>
-            <span className={`text-lg font-bold ${grade.text}`}>{formatUGX(data.net_worth)}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* SAVINGS GOALS */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-            <PiggyBank className="w-4 h-4 text-purple-600" />
-            Savings Goals
-          </h2>
-          <button 
-            onClick={() => router.push('/admin/savings')}
-            className="text-xs text-wallet-600 hover:underline"
-          >
-            Manage →
-          </button>
-        </div>
-        
-        {data.savings_goals && data.savings_goals.length > 0 ? (
-          <div className="space-y-3">
-            {data.savings_goals.map(goal => (
-              <div key={goal.id} className="p-3 bg-purple-50 rounded-xl border border-purple-100">
-                <div className="flex justify-between items-center mb-2">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">{goal.goal_label || goal.name}</p>
-                    <p className="text-xs text-gray-500">{formatUGX(goal.current_balance)} of {formatUGX(goal.target_amount)}</p>
-                  </div>
-                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${goal.progress >= 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-purple-100 text-purple-700'}`}>
-                    {goal.progress.toFixed(0)}%
-                  </span>
-                </div>
-                <div className="h-2 bg-purple-200 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-purple-600 rounded-full transition-all"
-                    style={{ width: String(Math.min(goal.progress, 100)) + '%' }}
-                  />
-                </div>
-                {goal.remaining > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">{formatUGX(goal.remaining)} remaining</p>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-6 text-gray-400">
-            <PiggyBank className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No savings goals set</p>
-            <button 
-              onClick={() => router.push('/admin/savings')}
-              className="mt-2 text-xs text-wallet-600 hover:underline"
+      {/* KEY METRICS CARDS */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div
+          className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all duration-300"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <div 
+              className="p-1.5 rounded-lg bg-emerald-50"
             >
-              Create a goal
-            </button>
+              <TrendingUp className="w-4 h-4 text-emerald-600" />
+            </div>
+            <p className="text-xs text-gray-500 font-medium">Total Income</p>
+          </div>
+          <p className="text-xl font-bold text-gray-900">{formatUGX(data.monthly_income)}</p>
+        </div>
+        <div
+          className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all duration-300"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <div 
+              className="p-1.5 rounded-lg bg-red-50"
+            >
+              <TrendingDown className="w-4 h-4 text-red-600" />
+            </div>
+            <p className="text-xs text-gray-500 font-medium">Total Expenses</p>
+          </div>
+          <p className="text-xl font-bold text-gray-900">{formatUGX(data.monthly_expenses)}</p>
+        </div>
+        <div
+          className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all duration-300"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <div 
+              className="p-1.5 rounded-lg bg-blue-50"
+            >
+              <Target className="w-4 h-4 text-blue-600" />
+            </div>
+            <p className="text-xs text-gray-500 font-medium">Savings Rate</p>
+          </div>
+          <p className={`text-xl font-bold ${savingsRate >= 20 ? 'text-emerald-600' : 'text-amber-600'}`}>
+            {savingsRate.toFixed(1)}%
+          </p>
+        </div>
+        <div
+          className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all duration-300"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <div 
+              className="p-1.5 rounded-lg bg-purple-50"
+            >
+              <PieChartIcon className="w-4 h-4 text-purple-600" />
+            </div>
+            <p className="text-xs text-gray-500 font-medium">Expense Ratio</p>
+          </div>
+          <p className={`text-xl font-bold ${expenseToIncomeRatio <= 70 ? 'text-emerald-600' : expenseToIncomeRatio <= 85 ? 'text-amber-600' : 'text-red-600'}`}>
+            {expenseToIncomeRatio.toFixed(1)}%
+          </p>
+        </div>
+      </div>
+
+      {/* WARNINGS */}
+      <div>
+        {(warnings.length > 0 || overspentCategories.length > 0) && (
+          <div
+            className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm"
+          >
+            <h2 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+              <div 
+                className="p-1.5 rounded-lg bg-amber-50"
+              >
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+              </div>
+              Alerts & Warnings
+            </h2>
+            <div className="space-y-2">
+              {warnings.map((w, i) => (
+                <div 
+                  key={i}
+                  className={`flex items-center gap-2 p-3 rounded-lg ${w.type === 'critical' ? 'bg-red-50 border border-red-100' : 'bg-amber-50 border border-amber-100'}`}
+                >
+                  <AlertTriangle className={`w-4 h-4 ${w.type === 'critical' ? 'text-red-600' : 'text-amber-600'}`} />
+                  <p className="text-sm text-gray-700 font-medium">{w.message}</p>
+                </div>
+              ))}
+              {overspentCategories.map((b, i) => (
+                <div 
+                  key={i}
+                  className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-100"
+                >
+                  <AlertTriangle className="w-4 h-4 text-red-600" />
+                  <p className="text-sm text-gray-700 font-medium">
+                    Overspent {b.category_name}: {formatUGX(b.spent)} of {formatUGX(b.budgeted)} ({b.compliance.toFixed(0)}%)
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
 
-      {/* DEBT POSITION */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-red-600" />
-            Debt Position
-          </h2>
-          <button 
-            onClick={() => router.push('/admin/debts')}
-            className="text-xs text-wallet-600 hover:underline"
+      {/* CASH FLOW TREND CHART */}
+      <div
+        className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-300"
+      >
+        <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <div 
+            className="p-1.5 rounded-lg bg-blue-50"
           >
-            Manage →
-          </button>
-        </div>
-        
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-3 bg-red-50 rounded-xl">
-            <p className="text-xs text-gray-500">You Owe (Payable)</p>
-            <p className="text-lg font-bold text-red-600">{formatUGX(data.payable_debts)}</p>
-            <p className="text-xs text-gray-400">{debtAccounts.length} debts</p>
+            <BarChart3 className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="p-3 bg-amber-50 rounded-xl">
-            <p className="text-xs text-gray-500">Owed to You (Receivable)</p>
-            <p className="text-lg font-bold text-amber-600">{formatUGX(data.receivable_amount)}</p>
-            <p className="text-xs text-gray-400">{receivableAccounts.length} receivables</p>
+          Cash Flow Trend ({data.period_label})
+        </h2>
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data.cash_flow}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis 
+                dataKey="month" 
+                tick={{ fontSize: 11 }}
+                stroke="#6b7280"
+              />
+              <YAxis 
+                tick={{ fontSize: 11 }}
+                stroke="#6b7280"
+                tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
+              />
+              <Tooltip 
+                formatter={(value) => typeof value === 'number' ? formatUGX(value) : String(value)}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+              />
+              <Area type="monotone" dataKey="income" stroke="#10b981" fill="#10b981" fillOpacity={0.3} name="Income" />
+              <Area type="monotone" dataKey="expenses" stroke="#ef4444" fill="#ef4444" fillOpacity={0.3} name="Expenses" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* NET INCOME TREND */}
+      <div
+        className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-300"
+      >
+        <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <div 
+            className="p-1.5 rounded-lg bg-purple-50"
+          >
+            <TrendingUp className="w-4 h-4 text-purple-600" />
+          </div>
+          Net Income Trend
+        </h2>
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data.cash_flow.map(cf => ({ ...cf, net: cf.income - cf.expenses }))}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis 
+                dataKey="month" 
+                tick={{ fontSize: 11 }}
+                stroke="#6b7280"
+              />
+              <YAxis 
+                tick={{ fontSize: 11 }}
+                stroke="#6b7280"
+                tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
+              />
+              <Tooltip 
+                formatter={(value) => typeof value === 'number' ? formatUGX(value) : String(value)}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+              />
+              <Line type="monotone" dataKey="net" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 4 }} name="Net Income" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* EXPENSE EXTRAPOLATION */}
+      <div
+        className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-300"
+      >
+        <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <div 
+            className="p-1.5 rounded-lg bg-amber-50"
+          >
+            <Zap className="w-4 h-4 text-amber-600" />
+          </div>
+          Expense Projection (Next 3 months)
+        </h2>
+        <div className="h-48 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={[
+              ...data.cash_flow.slice(-2).map(cf => ({ name: cf.month, actual: cf.expenses, projected: null })),
+              { name: 'Next Month', actual: null, projected: data.monthly_expenses * 1.02 },
+              { name: 'Month +2', actual: null, projected: data.monthly_expenses * 1.04 },
+              { name: 'Month +3', actual: null, projected: data.monthly_expenses * 1.06 },
+            ]}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis 
+                dataKey="name" 
+                tick={{ fontSize: 11 }}
+                stroke="#6b7280"
+              />
+              <YAxis 
+                tick={{ fontSize: 11 }}
+                stroke="#6b7280"
+                tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
+              />
+              <Tooltip 
+                formatter={(value) => typeof value === 'number' ? formatUGX(value) : String(value)}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+              />
+              <Bar dataKey="actual" fill="#3b82f6" radius={4} name="Actual" />
+              <Bar dataKey="projected" fill="#f59e0b" radius={4} name="Projected" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="text-xs text-gray-500 mt-2">* Based on 2% monthly growth trend</p>
+      </div>
+
+      {/* CATEGORY BREAKDOWN */}
+      <div
+        className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+      >
+        {/* Income Breakdown */}
+        <div
+          className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-300"
+        >
+          <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <div 
+              className="p-1.5 rounded-lg bg-emerald-50"
+            >
+              <PieChartIcon className="w-4 h-4 text-emerald-600" />
+            </div>
+            Income by Category
+          </h2>
+          <div className="h-48 w-full">
+            {incomeCategories.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={incomeCategories}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={(entry) => 'category_name' in entry ? (entry as {category_name: string}).category_name : ''}
+                    outerRadius={60}
+                    fill="#8884d8"
+                    dataKey="total"
+                  >
+                    {incomeCategories.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color || ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'][index % 6]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => typeof value === 'number' ? formatUGX(value) : String(value)} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">No income this period</p>
+            )}
           </div>
         </div>
-        
-        <div className={`mt-3 p-3 rounded-xl ${data.net_debt_position <= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-semibold text-gray-700">Net Debt Position</span>
-            <span className={`text-sm font-bold ${data.net_debt_position <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-              {data.net_debt_position <= 0 ? 'You are net positive' : 'You are net in debt'}: {formatUGX(Math.abs(data.net_debt_position))}
-            </span>
+
+        {/* Expense Breakdown */}
+        <div
+          className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-300"
+        >
+          <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <div 
+              className="p-1.5 rounded-lg bg-red-50"
+            >
+              <PieChartIcon className="w-4 h-4 text-red-600" />
+            </div>
+            Expenses by Category
+          </h2>
+          <div className="h-48 w-full">
+            {expenseCategories.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={expenseCategories}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={(entry) => 'category_name' in entry ? (entry as {category_name: string}).category_name : ''}
+                    outerRadius={60}
+                    fill="#8884d8"
+                    dataKey="total"
+                  >
+                    {expenseCategories.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color || ['#ef4444', '#f97316', '#eab308', '#84cc16', '#06b6d4', '#6366f1'][index % 6]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => typeof value === 'number' ? formatUGX(value) : String(value)} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">No expenses this period</p>
+            )}
           </div>
         </div>
       </div>
 
-      {/* EMERGENCY FUND */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-        <h2 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-          <Wallet className="w-4 h-4 text-blue-600" />
-          Emergency Fund
-        </h2>
-        <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
-          <div>
-            <p className="text-sm font-semibold text-gray-800">Available</p>
-            <p className="text-xs text-gray-500">For unexpected expenses</p>
+      {/* HIGHS/LOWS/AVERAGES */}
+      <div
+        className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-300"
+      >
+        <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <div 
+            className="p-1.5 rounded-lg bg-purple-50"
+          >
+            <Zap className="w-4 h-4 text-purple-600" />
           </div>
-          <p className="text-2xl font-bold text-blue-600">{formatUGX(data.emergency_fund)}</p>
+          Insights: Highs, Lows & Averages
+        </h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div 
+            className="p-4 bg-gradient-to-br from-red-50 to-red-100/50 rounded-xl border border-red-100"
+          >
+            <p className="text-xs text-gray-500 mb-1 font-medium">Highest Expense Category</p>
+            <p className="text-sm font-bold text-gray-800">{highestExpense?.category_name || 'N/A'}</p>
+            <p className="text-xs text-gray-500 mt-1">{formatUGX(highestExpense?.total || 0)}</p>
+          </div>
+          <div 
+            className="p-4 bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl border border-emerald-100"
+          >
+            <p className="text-xs text-gray-500 mb-1 font-medium">Highest Income Category</p>
+            <p className="text-sm font-bold text-gray-800">{highestIncome?.category_name || 'N/A'}</p>
+            <p className="text-xs text-gray-500 mt-1">{formatUGX(highestIncome?.total || 0)}</p>
+          </div>
+          <div 
+            className="p-4 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl border border-blue-100"
+          >
+            <p className="text-xs text-gray-500 mb-1 font-medium">Average Transaction</p>
+            <p className="text-sm font-bold text-gray-800">{formatUGX(avgTransaction)}</p>
+          </div>
         </div>
       </div>
 
       {/* RECENT TRANSACTIONS */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+      <div
+        className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-300"
+      >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-gray-700">Recent Transactions</h2>
-          <button 
+          <button
             onClick={() => router.push('/admin/transactions')}
-            className="text-xs text-wallet-600 hover:underline"
+            className="text-xs text-wallet-600 hover:underline font-medium"
           >
             View all →
           </button>
         </div>
-        
-        <div className="space-y-3">
-          {data.recent_transactions.slice(0, 5).map(t => (
-            <div key={t.id} className="flex items-center justify-between">
+        <div className="space-y-2">
+          {data.recent_transactions.slice(0, 5).map((tx) => (
+            <div 
+              key={tx.id}
+              className="flex items-center justify-between py-3 px-3 rounded-lg border-b border-gray-100 last:border-0 transition-colors"
+            >
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${t.type === 'income' ? 'bg-emerald-100' : 'bg-red-100'}`}>
-                  {t.type === 'income' ? (
-                    <ArrowUpRight className="w-4 h-4 text-emerald-600" />
+                <div 
+                  className={`p-1.5 rounded-lg ${tx.type === 'income' ? 'bg-emerald-50' : 'bg-red-50'}`}
+                >
+                  {tx.type === 'income' ? (
+                    <ArrowUpRight className="w-3 h-3 text-emerald-600" />
                   ) : (
-                    <ArrowDownRight className="w-4 h-4 text-red-600" />
+                    <ArrowDownRight className="w-3 h-3 text-red-600" />
                   )}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{t.description || t.category_name || 'Transaction'}</p>
-                  <p className="text-xs text-gray-400">{t.category_name}</p>
+                  <p className="text-sm font-medium text-gray-800">{tx.description || 'No description'}</p>
+                  <p className="text-xs text-gray-500">{tx.category_name || 'Uncategorized'} • {new Date(tx.date).toLocaleDateString()}</p>
                 </div>
               </div>
-              <span className={`text-sm font-bold ${t.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
-                {t.type === 'income' ? '+' : '-'}{formatUGX(t.amount)}
+              <span className={`text-sm font-bold ${tx.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
+                {tx.type === 'income' ? '+' : '-'}{formatUGX(tx.amount)}
               </span>
             </div>
           ))}
         </div>
-        
-        {data.recent_transactions.length === 0 && (
-          <div className="text-center py-6 text-gray-400">
-            <p className="text-sm">No transactions this month</p>
-          </div>
-        )}
       </div>
 
-      {/* QUICK ADD BUTTONS */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* QUICK ACTIONS */}
+      <div
+        className="grid grid-cols-2 gap-4"
+      >
         <button 
           onClick={() => router.push('/admin/transactions')}
-          className="flex items-center justify-center gap-2 p-3 bg-wallet-600 text-white rounded-xl font-medium hover:bg-wallet-700 transition"
+          className="flex items-center justify-center gap-2 p-4 bg-wallet-600 text-white rounded-xl font-medium hover:bg-wallet-700 transition shadow-md hover:shadow-lg"
         >
           <Plus className="w-4 h-4" />
           Add Transaction
         </button>
         <button 
-          onClick={() => router.push('/admin/savings')}
-          className="flex items-center justify-center gap-2 p-3 bg-white border border-wallet-200 text-wallet-700 rounded-xl font-medium hover:bg-wallet-50 transition"
+          onClick={() => router.push('/admin/accounts')}
+          className="flex items-center justify-center gap-2 p-4 bg-white border border-wallet-200 text-wallet-700 rounded-xl font-medium hover:bg-wallet-50 transition shadow-md hover:shadow-lg"
         >
-          <Plus className="w-4 h-4" />
-          Add Account
+          <BarChart3 className="w-4 h-4" />
+          View Accounts
         </button>
       </div>
     </div>
